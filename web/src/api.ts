@@ -1,0 +1,40 @@
+import type { Board, Column, Issue, IssueDetail, IssuePatch, Me, Sprint, Transition, User } from './types';
+
+async function req<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+  const res = await fetch('/api' + path, {
+    method: init?.method ?? 'GET',
+    headers: init?.body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+    body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.error ?? res.statusText);
+  return data as T;
+}
+
+const enc = encodeURIComponent;
+
+export const api = {
+  me: () => req<Me>('/me'),
+  boards: () => req<Board[]>('/boards'),
+  sprints: (boardId: number) => req<Sprint[]>(`/boards/${boardId}/sprints`),
+  columns: (boardId: number) => req<Column[]>(`/boards/${boardId}/columns`),
+  sprintIssues: (boardId: number, sprintId: number) => req<Issue[]>(`/boards/${boardId}/sprints/${sprintId}/issues`),
+  sprintCount: (boardId: number, sprintId: number) =>
+    req<{ total: number }>(`/boards/${boardId}/sprints/${sprintId}/count`),
+  backlog: (boardId: number) => req<Issue[]>(`/boards/${boardId}/backlog`),
+  backlogCount: (boardId: number) => req<{ total: number }>(`/boards/${boardId}/backlog/count`),
+  issuesByKeys: (keys: string[]) => req<Issue[]>(`/issues?keys=${enc(keys.join(','))}`),
+  issue: (key: string) => req<IssueDetail>(`/issues/${enc(key)}`),
+  updateIssue: (key: string, patch: IssuePatch) => req(`/issues/${enc(key)}`, { method: 'PUT', body: patch }),
+  transitions: (key: string) => req<Transition[]>(`/issues/${enc(key)}/transitions`),
+  transition: (key: string, id: string) => req(`/issues/${enc(key)}/transitions`, { method: 'POST', body: { id } }),
+  comment: (key: string, body: string) => req(`/issues/${enc(key)}/comments`, { method: 'POST', body: { body } }),
+  worklog: (key: string, body: { timeSpent: string; started: string; comment?: string }) =>
+    req(`/issues/${enc(key)}/worklog`, { method: 'POST', body }),
+  moveToSprint: (key: string, sprintId: number | null) =>
+    req(`/issues/${enc(key)}/sprint`, { method: 'POST', body: { sprintId } }),
+  assignable: (issueKey: string, query: string) =>
+    req<User[]>(`/users/assignable?issueKey=${enc(issueKey)}&query=${enc(query)}`),
+  labels: () => req<string[]>('/labels'),
+  parents: (project: string, query: string) => req<Issue[]>(`/parents?project=${enc(project)}&query=${enc(query)}`),
+};
