@@ -12,3 +12,5 @@ npm run dev            # web en http://localhost:5173, API en :3101
 - `web/`: React + React Query (Vite).
 
 Producción local: `npm run build && npm start`, que sirve todo desde :3101.
+
+Con Docker: `docker compose up -d --build`, que sirve todo desde :3101 (o el `PORT` de `.env`). Las credenciales se leen de `.env` al arrancar y no entran en la imagen.
