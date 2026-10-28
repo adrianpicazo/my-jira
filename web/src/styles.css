@@ -1172,3 +1172,10 @@ code {
 .card-status {
   display: flex;
 }
+
+.board-chooser {
+  background: var(--bg-3);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}

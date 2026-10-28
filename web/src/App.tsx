@@ -95,19 +95,42 @@ function Sidebar({ me, board, boards, onBoard, view, onView }: { me: Me; board: 
   );
 }
 
+/** Each board applies its own JQL filter to sprints, so the user has to pick theirs explicitly. */
+function BoardChooser({ boards, onChoose }: { boards: Board[]; onChoose: (id: number) => void }) {
+  return (
+    <div className="setup">
+      <h1>Elige tu board</h1>
+      <p className="muted">Los tickets de cada sprint se filtran con el filtro del board. Podrás cambiarlo luego desde la barra lateral.</p>
+      <div className="board-chooser">
+        <Menu
+          placeholder="Buscar board…"
+          items={boards.map((b) => ({ id: String(b.id), label: b.name, hint: b.projectKey }))}
+          onSelect={(i) => onChoose(Number(i.id))}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function App() {
   const { view, issue, navigate } = useRoute();
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me, staleTime: Infinity, retry: false });
   const boardsQ = useQuery({ queryKey: ['boards'], queryFn: api.boards, staleTime: Infinity, enabled: meQ.isSuccess });
   const [boardId, setBoardId] = useLocalStorage<number | null>('boardId', null);
   const boards = boardsQ.data ?? [];
-  const board = boards.find((b) => b.id === boardId) ?? boards[0];
+  const board = boards.find((b) => b.id === boardId);
 
   const sprintsQ = useQuery({
     queryKey: ['sprints', board?.id],
     queryFn: () => api.sprints(board!.id),
     enabled: !!board,
     staleTime: 5 * 60_000,
+  });
+  const columnsQ = useQuery({
+    queryKey: ['columns', board?.id],
+    queryFn: () => api.columns(board!.id),
+    enabled: !!board,
+    staleTime: Infinity,
   });
   const sprints = useMemo(() => sprintsQ.data ?? [], [sprintsQ.data]);
   const [hiddenStore, setHiddenStore] = useLocalStorage<Record<string, number[]>>('hiddenSprintIds', {});
@@ -118,6 +141,9 @@ export function App() {
 
   if (meQ.error) return <Setup message={(meQ.error as Error).message} />;
   if (boardsQ.error) return <Setup message={(boardsQ.error as Error).message} />;
+  if (meQ.data && boardsQ.data && boards.length && !board) {
+    return <BoardChooser boards={boards} onChoose={setBoardId} />;
+  }
   if (!meQ.data || !board || !sprintsQ.data) {
     return <div className="boot">{boardsQ.isSuccess && !boards.length ? 'No hay boards accesibles.' : 'Cargando…'}</div>;
   }
@@ -126,6 +152,7 @@ export function App() {
     me: meQ.data,
     board,
     sprints,
+    columns: columnsQ.data ?? [],
     hiddenSprintIds,
     setHiddenSprintIds: (ids) => setHiddenStore({ ...hiddenStore, [board.id]: ids }),
     openIssue,

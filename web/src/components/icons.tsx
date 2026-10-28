@@ -1,18 +1,17 @@
+import { useContext } from 'react';
+import { AppContext } from '../hooks';
 import type { Status, User } from '../types';
 import { colorFor, initials, statusStyle } from '../util';
 
 export function StatusIcon({ status, size = 14 }: { status: Status | null | undefined; size?: number }) {
-  const { color, fill, kind } = statusStyle(status);
+  const columns = useContext(AppContext)?.columns;
+  const { color, fill, kind } = statusStyle(status, columns);
   const r = 6;
-  if (kind === 'done' || kind === 'cancel') {
+  if (kind === 'done') {
     return (
       <svg width={size} height={size} viewBox="0 0 14 14" aria-label={status?.name}>
         <circle cx="7" cy="7" r={r} fill={color} stroke={color} strokeWidth="1.5" />
-        {kind === 'done' ? (
-          <path d="M4.3 7.2 6.1 9l3.6-3.8" fill="none" stroke="var(--bg)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        ) : (
-          <path d="M4.8 4.8l4.4 4.4M9.2 4.8 4.8 9.2" stroke="var(--bg)" strokeWidth="1.5" strokeLinecap="round" />
-        )}
+        <path d="M4.3 7.2 6.1 9l3.6-3.8" fill="none" stroke="var(--bg)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     );
   }
@@ -23,15 +22,7 @@ export function StatusIcon({ status, size = 14 }: { status: Status | null | unde
   const large = fill > 0.5 ? 1 : 0;
   return (
     <svg width={size} height={size} viewBox="0 0 14 14" aria-label={status?.name}>
-      <circle
-        cx="7"
-        cy="7"
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth="1.5"
-        strokeDasharray={kind === 'todo' && /backlog/i.test(status?.name ?? '') ? '1.4 1.6' : undefined}
-      />
+      <circle cx="7" cy="7" r={r} fill="none" stroke={color} strokeWidth="1.5" />
       {fill > 0 && fill < 1 && <path d={`M7 7V${7 - ir}A${ir} ${ir} 0 ${large} 1 ${x} ${y}Z`} fill={color} />}
     </svg>
   );

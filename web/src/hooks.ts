@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
 import { toast } from './toast';
-import type { Board, Issue, IssueDetail, IssuePatch, Me, Sprint, Transition, User } from './types';
+import type { Board, Column, Issue, IssueDetail, IssuePatch, Me, Sprint, Transition, User } from './types';
 
 export function useLocalStorage<T>(key: string, initial: T) {
   const [value, setValue] = useState<T>(() => {
@@ -57,6 +57,8 @@ export interface AppCtx {
   me: Me;
   board: Board;
   sprints: Sprint[];
+  /** Board columns, read from the board configuration. */
+  columns: Column[];
   hiddenSprintIds: number[];
   setHiddenSprintIds: (ids: number[]) => void;
   openIssue: (key: string) => void;
