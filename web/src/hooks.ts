@@ -76,6 +76,8 @@ interface Action {
   key: string;
   fn: () => Promise<unknown>;
   optimistic?: Partial<Issue>;
+  /** Extra local cache update applied before the request. */
+  local?: () => void;
   success?: string;
 }
 
@@ -96,6 +98,7 @@ export function useIssueActions() {
   const m = useMutation({
     mutationFn: async (a: Action) => {
       if (a.optimistic) patchLocal(a.key, a.optimistic);
+      a.local?.();
       await a.fn();
     },
     onSuccess: (_d, a) => a.success && toast(a.success),
@@ -107,6 +110,18 @@ export function useIssueActions() {
       qc.invalidateQueries({ queryKey: ['transitions', a.key] });
     },
   });
+  // Lists come back from Jira in rank order, so reordering locally is just moving the item.
+  const moveLocal = (key: string, pos: 'before' | 'after', target: string) =>
+    qc.setQueriesData<Issue[]>({ queryKey: ['issues'] }, (old) => {
+      if (!old?.some((i) => i.key === target)) return old;
+      const item = old.find((i) => i.key === key);
+      if (!item) return old;
+      const rest = old.filter((i) => i.key !== key);
+      const t = rest.findIndex((i) => i.key === target);
+      rest.splice(pos === 'before' ? t : t + 1, 0, item);
+      return rest;
+    });
+
   /** Resolves to whether it succeeded; errors are already surfaced as toasts. */
   const run = (a: Action) => m.mutateAsync(a).then(() => true, () => false);
 
@@ -130,6 +145,8 @@ export function useIssueActions() {
       }),
     moveToSprint: (key: string, sprint: Sprint | null) =>
       run({ key, fn: () => api.moveToSprint(key, sprint?.id ?? null), success: `${key} → ${sprint?.name ?? 'Backlog'}` }),
+    rank: (key: string, pos: 'before' | 'after', target: string) =>
+      run({ key, fn: () => api.rank(key, pos, target), local: () => moveLocal(key, pos, target) }),
     comment: (key: string, body: string) => run({ key, fn: () => api.comment(key, body) }),
     worklog: (key: string, body: { timeSpent: string; started: string; comment?: string }) =>
       run({ key, fn: () => api.worklog(key, body), success: `Registrado ${body.timeSpent} en ${key}` }),

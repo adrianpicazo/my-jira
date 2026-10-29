@@ -258,7 +258,14 @@ export function IssuePanel({ issueKey, onClose, onOpen }: { issueKey: string; on
               </>
             )}
             <span className="muted">›</span>
-            <span>{issueKey}</span>
+            <button
+              className="copy-key"
+              title="Copiar clave"
+              onClick={() => navigator.clipboard.writeText(issueKey).then(() => toast(`${issueKey} copiado`))}
+            >
+              {issueKey}
+              <Icon.Copy size={13} />
+            </button>
           </div>
           <div className="panel-actions">
             <button

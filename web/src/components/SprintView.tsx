@@ -129,11 +129,11 @@ export function SprintView() {
     all.filter((i) => !hiddenStatusIds.includes(i.status?.id ?? '')),
     filters,
   );
-  // Stories in view that have subtasks in view: the ones the board can fold.
-  const storiesWithSubtasks = useMemo(() => {
-    const keys = new Set(visible.map((i) => i.key));
-    return [...new Set(visible.filter((i) => i.issuetype?.subtask && i.parent && keys.has(i.parent.key)).map((i) => i.parent!.key))];
-  }, [visible]);
+  // Stories with subtasks in view (on the board or as a placeholder): the ones the board can fold.
+  const storiesWithSubtasks = useMemo(
+    () => [...new Set(visible.filter((i) => i.issuetype?.subtask && i.parent).map((i) => i.parent!.key))],
+    [visible],
+  );
   const allStoriesFolded = storiesWithSubtasks.length > 0 && storiesWithSubtasks.every((k) => collapsedStories.includes(k));
   const toggleStory = (key: string) =>
     setCollapsedStories(collapsedStories.includes(key) ? collapsedStories.filter((k) => k !== key) : [...collapsedStories, key]);
@@ -229,6 +229,7 @@ export function SprintView() {
             groups={groups}
             columns={columns}
             issues={visible}
+            allIssues={all}
             collapsed={collapsed}
             onToggle={toggle}
             showParent={laneBy !== 'epic'}

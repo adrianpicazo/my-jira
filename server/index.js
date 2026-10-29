@@ -288,6 +288,20 @@ app.post('/api/issues/:key/sprint', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Jira rank is global; the Agile API accepts either rankBeforeIssue or rankAfterIssue.
+app.put('/api/rank', async (req, res) => {
+  const { issues, before, after } = req.body ?? {};
+  if (!Array.isArray(issues) || !issues.length || (!before && !after)) throw new HttpError(400, 'Parámetros de orden inválidos');
+  const data = await jira('/rest/agile/1.0/issue/rank', {
+    method: 'PUT',
+    body: { issues, ...(before ? { rankBeforeIssue: before } : { rankAfterIssue: after }) },
+  });
+  // 207 Multi-Status reports per-issue failures inside a 2xx response.
+  const failed = (data?.entries ?? []).filter((e) => e.status >= 400);
+  if (failed.length) throw new HttpError(400, failed.flatMap((f) => f.errors ?? []).join(' · ') || 'No se pudo reordenar');
+  res.json({ ok: true });
+});
+
 app.get('/api/users/assignable', async (req, res) => {
   const users = await jira('/rest/api/3/user/assignable/search', {
     query: { issueKey: req.query.issueKey, query: req.query.query, maxResults: 30 },

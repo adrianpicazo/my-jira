@@ -33,6 +33,8 @@ export const api = {
     req(`/issues/${enc(key)}/worklog`, { method: 'POST', body }),
   moveToSprint: (key: string, sprintId: number | null) =>
     req(`/issues/${enc(key)}/sprint`, { method: 'POST', body: { sprintId } }),
+  rank: (key: string, pos: 'before' | 'after', target: string) =>
+    req('/rank', { method: 'PUT', body: { issues: [key], [pos]: target } }),
   assignable: (issueKey: string, query: string) =>
     req<User[]>(`/users/assignable?issueKey=${enc(issueKey)}&query=${enc(query)}`),
   labels: () => req<string[]>('/labels'),

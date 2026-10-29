@@ -1,4 +1,4 @@
-import type { Column, Status } from './types';
+import type { Column, IssueType, Status } from './types';
 
 const dayFmt = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' });
 const fullFmt = new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'short' });
@@ -44,6 +44,16 @@ function hash(s: string) {
 
 const PALETTE = ['#e5484d', '#f76b15', '#ffc53d', '#46a758', '#12a594', '#0090ff', '#5e6ad2', '#8e4ec6', '#d6409f', '#978365'];
 export const colorFor = (s: string) => PALETTE[hash(s) % PALETTE.length];
+
+/** Jira-like colour per issue type, used for the bar on the left of each card. */
+export function typeColor(t: IssueType | null | undefined) {
+  if (!t) return 'var(--faint)';
+  const n = t.name.toLowerCase();
+  if (/bug|error|incidencia/.test(n)) return '#e5493a';
+  if (/stor|historia/.test(n)) return '#63ba3c';
+  if (/task|tarea/.test(n)) return '#4bade8';
+  return '#f2a03d';
+}
 
 /**
  * Linear-style colour + "fill" for a Jira status. Derived only from its category and the
