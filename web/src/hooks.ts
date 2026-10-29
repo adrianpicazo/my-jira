@@ -97,6 +97,8 @@ export function useIssueActions() {
 
   const m = useMutation({
     mutationFn: async (a: Action) => {
+      // Don't let an in-flight (e.g. periodic) refetch overwrite the optimistic update.
+      await qc.cancelQueries({ queryKey: ['issues'] });
       if (a.optimistic) patchLocal(a.key, a.optimistic);
       a.local?.();
       await a.fn();
@@ -147,6 +149,15 @@ export function useIssueActions() {
       run({ key, fn: () => api.moveToSprint(key, sprint?.id ?? null), success: `${key} → ${sprint?.name ?? 'Backlog'}` }),
     rank: (key: string, pos: 'before' | 'after', target: string) =>
       run({ key, fn: () => api.rank(key, pos, target), local: () => moveLocal(key, pos, target) }),
+    deleteIssue: (key: string) =>
+      run({
+        key,
+        fn: () => api.deleteIssue(key),
+        // Its subtasks go too.
+        local: () =>
+          qc.setQueriesData<Issue[]>({ queryKey: ['issues'] }, (old) => old?.filter((i) => i.key !== key && i.parent?.key !== key)),
+        success: `${key} eliminado`,
+      }),
     comment: (key: string, body: string) => run({ key, fn: () => api.comment(key, body) }),
     worklog: (key: string, body: { timeSpent: string; started: string; comment?: string }) =>
       run({ key, fn: () => api.worklog(key, body), success: `Registrado ${body.timeSpent} en ${key}` }),

@@ -14,6 +14,8 @@ import { Progress } from './Progress';
 import { SprintBoard } from './SprintBoard';
 import { useSlashFocus } from './useSlashFocus';
 
+const REFRESH_MS = 30_000;
+
 type GroupBy = 'epic' | 'status' | 'assignee' | 'none';
 
 export interface Group {
@@ -110,6 +112,8 @@ export function SprintView() {
     queryKey: ['issues', 'sprint', board.id, sprint?.id],
     queryFn: () => api.sprintIssues(board.id, sprint!.id),
     enabled: !!sprint,
+    // Keep the sprint in sync with changes made elsewhere (paused while the tab is hidden).
+    refetchInterval: REFRESH_MS,
   });
   const { data: columns } = useQuery({ queryKey: ['columns', board.id], queryFn: () => api.columns(board.id), staleTime: Infinity });
 
@@ -121,6 +125,7 @@ export function SprintView() {
     queryKey: ['issues', 'keys', epicKeys],
     queryFn: () => api.issuesByKeys(epicKeys),
     enabled: laneBy === 'epic' && epicKeys.length > 0,
+    refetchInterval: REFRESH_MS,
   });
   const epics = useMemo(() => new Map((epicIssues ?? []).map((e) => [e.key, e])), [epicIssues]);
 
@@ -230,6 +235,7 @@ export function SprintView() {
             columns={columns}
             issues={visible}
             allIssues={all}
+            currentSprintId={sprint?.id}
             collapsed={collapsed}
             onToggle={toggle}
             showParent={laneBy !== 'epic'}

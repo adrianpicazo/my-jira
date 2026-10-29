@@ -1343,3 +1343,80 @@ code {
 .card.drop-after::after {
   bottom: -4px;
 }
+
+/* ---------- Context menu ---------- */
+
+.ctx {
+  position: fixed;
+  z-index: 120;
+  min-width: 220px;
+  padding: 4px;
+  background: var(--bg-3);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  animation: pop 0.08s ease-out;
+}
+.ctx-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: default;
+  user-select: none;
+}
+.ctx-item:hover,
+.ctx-item.active {
+  background: var(--active);
+}
+.ctx-item > svg {
+  color: var(--muted);
+}
+.ctx-item.danger {
+  color: var(--danger);
+}
+.ctx-item.danger .menu-icon {
+  color: var(--danger);
+}
+.ctx-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border-2);
+}
+.ctx-sub {
+  position: absolute;
+  left: calc(100% + 4px);
+  top: -4px;
+  background: var(--bg-3);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  cursor: auto;
+}
+.ctx-sub.flip {
+  left: auto;
+  right: calc(100% + 4px);
+}
+.ctx-sub.up {
+  top: auto;
+  bottom: -4px;
+}
+
+.offscreen-hint {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  animation: pop 0.12s ease-out;
+}

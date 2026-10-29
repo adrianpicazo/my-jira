@@ -253,6 +253,11 @@ app.put('/api/issues/:key', async (req, res) => {
   res.json({ ok: true });
 });
 
+app.delete('/api/issues/:key', async (req, res) => {
+  await jira(`/rest/api/3/issue/${k(req)}`, { method: 'DELETE', query: { deleteSubtasks: 'true' } });
+  res.json({ ok: true });
+});
+
 app.get('/api/issues/:key/transitions', async (req, res) => {
   const data = await jira(`/rest/api/3/issue/${k(req)}/transitions`);
   res.json(data.transitions.map((t) => ({ id: t.id, name: t.name, to: status(t.to) })));

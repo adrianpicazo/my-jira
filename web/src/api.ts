@@ -26,6 +26,7 @@ export const api = {
   issuesByKeys: (keys: string[]) => req<Issue[]>(`/issues?keys=${enc(keys.join(','))}`),
   issue: (key: string) => req<IssueDetail>(`/issues/${enc(key)}`),
   updateIssue: (key: string, patch: IssuePatch) => req(`/issues/${enc(key)}`, { method: 'PUT', body: patch }),
+  deleteIssue: (key: string) => req(`/issues/${enc(key)}`, { method: 'DELETE' }),
   transitions: (key: string) => req<Transition[]>(`/issues/${enc(key)}/transitions`),
   transition: (key: string, id: string) => req(`/issues/${enc(key)}/transitions`, { method: 'POST', body: { id } }),
   comment: (key: string, body: string) => req(`/issues/${enc(key)}/comments`, { method: 'POST', body: { body } }),

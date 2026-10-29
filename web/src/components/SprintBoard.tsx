@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { useApp, useIssueActions } from '../hooks';
@@ -6,6 +6,7 @@ import { toast } from '../toast';
 import type { Column, Issue, ParentRef } from '../types';
 import { colorFor, typeColor } from '../util';
 import { Icon, PriorityIcon, StatusIcon } from './icons';
+import { CardMenu, type CardMenuState } from './CardMenu';
 import { AssigneePicker, LabelChips } from './Pickers';
 import { Progress } from './Progress';
 import type { Group } from './SprintView';
@@ -24,6 +25,17 @@ function useColumns(columns: Column[] | undefined, issues: Issue[]): Column[] {
 
 type DropPos = 'before' | 'after';
 
+/** Subtasks of the hovered story that are scrolled out of view, counted per column and direction. */
+interface Offscreen {
+  id: string;
+  dir: 'up' | 'down';
+  count: number;
+  left: number;
+  width: number;
+  top: number;
+  bottom: number;
+}
+
 /** What is being dragged. A "unit" is a story card or placeholder together with its subtasks. */
 interface DragState {
   key: string;
@@ -31,6 +43,8 @@ interface DragState {
   /** Issue whose rank changes: the card itself, or the story behind a placeholder. */
   rankKey: string;
   parentKey?: string;
+  /** Cards never leave their swimlane. */
+  laneId: string;
   cellId: string;
   colIdx: number;
 }
@@ -77,26 +91,39 @@ function dropPos(e: React.DragEvent): DropPos {
   return e.clientY < r.top + r.height / 2 ? 'before' : 'after';
 }
 
-function FoldToggle({ count, folded, onToggle, children }: { count: number; folded: boolean; onToggle: () => void; children?: React.ReactNode }) {
+function FoldToggle({
+  folded,
+  onToggle,
+  onHover,
+  children,
+}: {
+  folded: boolean;
+  onToggle: () => void;
+  onHover: (on: boolean) => void;
+  children?: React.ReactNode;
+}) {
   return (
     <button
       className="card-subtasks"
+      onMouseEnter={() => onHover(true)}
+      onMouseLeave={() => onHover(false)}
       onClick={(e) => {
         e.stopPropagation();
         onToggle();
       }}
     >
       <Icon.Chevron open={!folded} size={10} />
-      {count} subtareas
       {children}
     </button>
   );
 }
 
+/** "N pendientes · de M" over every subtask of the story, with a per-status breakdown on hover. */
 function SubtaskStats({ subtasks, columns }: { subtasks: Issue[]; columns: Column[] }) {
+  const pending = subtasks.filter((s) => s.status?.category !== 'done').length;
   return (
-    <span className="muted subtask-stats">
-      · {subtasks.filter((s) => s.status?.category === 'done').length} hechas
+    <span className="subtask-stats">
+      {pending} {pending === 1 ? 'pendiente' : 'pendientes'} <span className="muted">· de {subtasks.length}</span>
       <span className="tooltip">
         <span className="tooltip-row tooltip-total">
           <span>Total</span>
@@ -120,26 +147,27 @@ interface DragProps {
   onDragEnd: () => void;
   onDragOver?: (e: React.DragEvent) => void;
   dropPos?: DropPos | null;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 function ParentPlaceholder({
   parent,
-  subtaskCount,
   allSubtasks,
   columns,
   folded,
   onToggle,
   onHover,
+  onSubtasksHover,
   draggable,
   drag,
 }: {
   parent: ParentRef;
-  subtaskCount: number;
   allSubtasks: Issue[];
   columns: Column[];
   folded: boolean;
   onToggle: () => void;
   onHover: (key: string | null) => void;
+  onSubtasksHover: (on: boolean) => void;
   draggable: boolean;
   drag: DragProps;
 }) {
@@ -169,7 +197,7 @@ function ParentPlaceholder({
         <span className="row-key">{parent.key}</span>
         <span className="ellipsis">{parent.summary}</span>
       </div>
-      <FoldToggle count={subtaskCount} folded={folded} onToggle={onToggle}>
+      <FoldToggle folded={folded} onToggle={onToggle} onHover={onSubtasksHover}>
         <SubtaskStats subtasks={allSubtasks} columns={columns} />
       </FoldToggle>
     </div>
@@ -187,9 +215,10 @@ interface CardProps extends DragProps {
   onToggleSubtasks: () => void;
   /** 'flash' after unfolding its story, 'hover' while its placeholder is hovered */
   highlight: 'flash' | 'hover' | null;
+  onSubtasksHover?: (on: boolean) => void;
 }
 
-function Card({ issue, showParent, subtaskCount, allSubtasks, columns, folded, onToggleSubtasks, highlight, onDragStart, onDragEnd, onDragOver, dropPos }: CardProps) {
+function Card({ issue, showParent, subtaskCount, allSubtasks, columns, folded, onToggleSubtasks, highlight, onDragStart, onDragEnd, onDragOver, dropPos, onContextMenu, onSubtasksHover }: CardProps) {
   const { openIssue } = useApp();
   const [dragging, setDragging] = useState(false);
   const subtask = !!issue.issuetype?.subtask;
@@ -197,7 +226,7 @@ function Card({ issue, showParent, subtaskCount, allSubtasks, columns, folded, o
     <div
       className={`card${subtask ? ' card-sub' : ''}${dragging ? ' dragging' : ''}${highlight ? ` card-${highlight}` : ''}${dropPos ? ` drop-${dropPos}` : ''}`}
       style={{ '--type': typeColor(issue.issuetype) } as CSSProperties}
-      title={issue.issuetype?.name}
+      data-key={issue.key}
       draggable
       onDragStart={(e) => {
         e.stopPropagation();
@@ -211,6 +240,7 @@ function Card({ issue, showParent, subtaskCount, allSubtasks, columns, folded, o
         onDragEnd();
       }}
       onDragOver={onDragOver}
+      onContextMenu={onContextMenu}
       onClick={() => openIssue(issue.key)}
     >
       <div className="card-title">{issue.summary}</div>
@@ -236,7 +266,7 @@ function Card({ issue, showParent, subtaskCount, allSubtasks, columns, folded, o
         <AssigneePicker issueKey={issue.key} assignee={issue.assignee} />
       </div>
       {subtaskCount > 0 && (
-        <FoldToggle count={subtaskCount} folded={folded} onToggle={onToggleSubtasks}>
+        <FoldToggle folded={folded} onToggle={onToggleSubtasks} onHover={(on) => onSubtasksHover?.(on)}>
           <SubtaskStats subtasks={allSubtasks} columns={columns} />
         </FoldToggle>
       )}
@@ -255,6 +285,7 @@ export function SprintBoard({
   hiddenStatusIds,
   collapsedStories,
   onToggleStory,
+  currentSprintId,
 }: {
   groups: Group[];
   columns: Column[] | undefined;
@@ -266,6 +297,7 @@ export function SprintBoard({
   hiddenStatusIds: string[];
   collapsedStories: string[];
   onToggleStory: (key: string) => void;
+  currentSprintId?: number;
 }) {
   const qc = useQueryClient();
   const { transition, rank } = useIssueActions();
@@ -315,6 +347,62 @@ export function SprintBoard({
   const grid: CSSProperties = { gridTemplateColumns: `repeat(${columns.length}, minmax(260px, 1fr))` };
 
   /* ---------- drag & drop ---------- */
+
+  /* ---------- hovering "N subtareas": highlight them and point at the ones scrolled out of view ---------- */
+
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [hoverStory, setHoverStory] = useState<string | null>(null);
+  const [offscreen, setOffscreen] = useState<Offscreen[]>([]);
+  useEffect(() => {
+    const board = boardRef.current;
+    if (!hoverStory || !board) return setOffscreen([]);
+    const compute = () => {
+      const br = board.getBoundingClientRect();
+      // Sticky column header plus the sticky swimlane header hide the top of the scroll area.
+      const visibleTop = br.top + (board.querySelector<HTMLElement>('.board-cols')?.offsetHeight ?? 0) + 36;
+      const heads = board.querySelectorAll<HTMLElement>('.board-col-head');
+      const found = new Map<string, Offscreen>();
+      for (const s of subtasksOf.get(hoverStory) ?? []) {
+        const el = board.querySelector<HTMLElement>(`[data-key="${CSS.escape(s.key)}"]`);
+        const col = colOf.get(s.status?.id ?? '');
+        if (!el || col === undefined) continue;
+        const r = el.getBoundingClientRect();
+        const dir = r.top >= br.bottom - 4 ? 'down' : r.bottom <= visibleTop ? 'up' : null;
+        if (!dir) continue;
+        const id = `${col}:${dir}`;
+        const prev = found.get(id);
+        if (prev) {
+          prev.count++;
+          continue;
+        }
+        const hr = heads[col]?.getBoundingClientRect();
+        const left = Math.max(br.left + 8, Math.min(hr?.left ?? br.left, br.right - 200));
+        found.set(id, { id, dir, count: 1, left, width: Math.min(hr?.width ?? 240, br.right - left - 8), top: visibleTop + 6, bottom: innerHeight - br.bottom + 10 });
+      }
+      setOffscreen([...found.values()]);
+    };
+    compute();
+    board.addEventListener('scroll', compute);
+    return () => board.removeEventListener('scroll', compute);
+  }, [hoverStory, subtasksOf, colOf]);
+
+  const [menu, setMenu] = useState<CardMenuState | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  /** `peers` are the keys it can be ranked among (units of its cell, or its sibling subtasks), in order. */
+  const openMenu = (e: React.MouseEvent, issue: Issue, peers: string[]) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const ranked = peers.filter((k) => rankIndex.has(k));
+    const first = ranked[0];
+    const last = ranked[ranked.length - 1];
+    setMenu({
+      x: e.clientX,
+      y: e.clientY,
+      issue,
+      top: first && first !== issue.key ? { pos: 'before', target: first } : undefined,
+      bottom: last && last !== issue.key ? { pos: 'after', target: last } : undefined,
+    });
+  };
 
   const drag = useRef<DragState | null>(null);
   const [dropAt, setDropAt] = useState<DropAt | null>(null);
@@ -369,7 +457,7 @@ export function SprintBoard({
   };
 
   return (
-    <div className="board">
+    <div className="board" ref={boardRef}>
       <div className="board-inner" style={{ minWidth: columns.length * 268 + 24 }}>
         <div className="board-cols" style={grid}>
           {columns.map((c) => {
@@ -405,8 +493,8 @@ export function SprintBoard({
                         className={`cell${overCell === cellId ? ' over' : ''}`}
                         onDragOver={(e) => {
                           const d = drag.current;
-                          // Other columns accept cards and subtasks as a status change.
-                          if (!d || d.kind === 'placeholder' || d.colIdx === colIdx) return;
+                          // Other columns of the same swimlane accept cards and subtasks as a status change.
+                          if (!d || d.kind === 'placeholder' || d.colIdx === colIdx || d.laneId !== g.id) return;
                           e.preventDefault();
                           setOverCell(cellId);
                         }}
@@ -418,15 +506,18 @@ export function SprintBoard({
                           endDrag();
                           if (!d) return;
                           if (at && at.cellId === cellId) rank(d.rankKey, at.pos, at.target);
-                          else if (d.colIdx !== colIdx && d.kind !== 'placeholder') transitionTo(d.key, colIdx);
+                          else if (d.colIdx !== colIdx && d.kind !== 'placeholder' && d.laneId === g.id) transitionTo(d.key, colIdx);
                         }}
                       >
-                        {arrange(list, rankOf).map((unit) => {
+                        {(() => {
+                          const units = arrange(list, rankOf);
+                          const unitKeys = units.map((u) => (u.head.kind === 'card' ? u.head.issue.key : u.head.parent.key));
+                          return units.map((unit) => {
                           const head = unit.head;
                           const storyKey = head.kind === 'card' ? head.issue.key : head.parent.key;
                           const folded = collapsedStories.includes(storyKey);
                           const startDrag = (kind: DragState['kind']) => () => {
-                            drag.current = { key: storyKey, kind, rankKey: storyKey, cellId, colIdx };
+                            drag.current = { key: storyKey, kind, rankKey: storyKey, laneId: g.id, cellId, colIdx };
                           };
                           return (
                             <div
@@ -437,11 +528,11 @@ export function SprintBoard({
                               {head.kind === 'placeholder' ? (
                                 <ParentPlaceholder
                                   parent={head.parent}
-                                  subtaskCount={unit.subs.length}
                                   allSubtasks={allSubtasksOf.get(storyKey) ?? []}
                                   columns={allColumns}
                                   folded={folded}
                                   onToggle={() => toggleStory(storyKey)}
+                                  onSubtasksHover={(on) => setHoverStory(on ? storyKey : null)}
                                   onHover={setHoverParent}
                                   // Its position comes from the story's rank, which only exists if the story is in the sprint.
                                   draggable={rankIndex.has(storyKey)}
@@ -456,9 +547,11 @@ export function SprintBoard({
                                   columns={allColumns}
                                   folded={folded}
                                   onToggleSubtasks={() => toggleStory(storyKey)}
+                                  onSubtasksHover={(on) => setHoverStory(on ? storyKey : null)}
                                   highlight={hoverParent === storyKey ? 'hover' : flash.has(storyKey) ? 'flash' : null}
                                   onDragStart={startDrag('card')}
                                   onDragEnd={endDrag}
+                                  onContextMenu={(e) => openMenu(e, head.issue, unitKeys)}
                                 />
                               )}
                               {!folded &&
@@ -472,18 +565,26 @@ export function SprintBoard({
                                     columns={allColumns}
                                     folded={false}
                                     onToggleSubtasks={() => {}}
-                                    highlight={flash.has(s.key) ? 'flash' : null}
+                                    highlight={hoverStory === storyKey ? 'hover' : flash.has(s.key) ? 'flash' : null}
                                     onDragStart={() => {
-                                      drag.current = { key: s.key, kind: 'subtask', rankKey: s.key, parentKey: s.parent?.key, cellId, colIdx };
+                                      drag.current = { key: s.key, kind: 'subtask', rankKey: s.key, parentKey: s.parent?.key, laneId: g.id, cellId, colIdx };
                                     }}
                                     onDragEnd={endDrag}
                                     onDragOver={(e) => subtaskDragOver(e, s, cellId)}
                                     dropPos={dropAt?.id === s.key ? dropAt.pos : null}
+                                    onContextMenu={(e) =>
+                                      openMenu(
+                                        e,
+                                        s,
+                                        unit.subs.map((x) => x.key),
+                                      )
+                                    }
                                   />
                                 ))}
                             </div>
                           );
-                        })}
+                          });
+                        })()}
                       </div>
                     );
                   })}
@@ -493,6 +594,17 @@ export function SprintBoard({
           );
         })}
       </div>
+      {offscreen.map((o) => (
+        <div
+          key={o.id}
+          className="offscreen-hint"
+          style={{ left: o.left, width: o.width, ...(o.dir === 'down' ? { bottom: o.bottom } : { top: o.top }) }}
+        >
+          {o.dir === 'down' ? <Icon.ArrowDown size={13} /> : <Icon.ArrowUp size={13} />}
+          {o.count} {o.count === 1 ? 'subtarea' : 'subtareas'} {o.dir === 'down' ? 'más abajo' : 'más arriba'}
+        </div>
+      ))}
+      {menu && <CardMenu state={menu} currentSprintId={currentSprintId} onClose={closeMenu} />}
     </div>
   );
 }
