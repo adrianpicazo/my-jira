@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
 import { toast } from './toast';
-import type { Board, Issue, IssueDetail, IssuePatch, Me, Sprint, Transition, User } from './types';
+import type { Board, Column, Issue, IssueDetail, IssuePatch, Me, Sprint, Transition, User } from './types';
 
 export function useLocalStorage<T>(key: string, initial: T) {
   const [value, setValue] = useState<T>(() => {
@@ -57,6 +57,8 @@ export interface AppCtx {
   me: Me;
   board: Board;
   sprints: Sprint[];
+  /** Board columns, read from the board configuration. */
+  columns: Column[];
   hiddenSprintIds: number[];
   setHiddenSprintIds: (ids: number[]) => void;
   openIssue: (key: string) => void;
@@ -74,6 +76,8 @@ interface Action {
   key: string;
   fn: () => Promise<unknown>;
   optimistic?: Partial<Issue>;
+  /** Extra local cache update applied before the request. */
+  local?: () => void;
   success?: string;
 }
 
@@ -93,7 +97,10 @@ export function useIssueActions() {
 
   const m = useMutation({
     mutationFn: async (a: Action) => {
+      // Don't let an in-flight (e.g. periodic) refetch overwrite the optimistic update.
+      await qc.cancelQueries({ queryKey: ['issues'] });
       if (a.optimistic) patchLocal(a.key, a.optimistic);
+      a.local?.();
       await a.fn();
     },
     onSuccess: (_d, a) => a.success && toast(a.success),
@@ -105,6 +112,18 @@ export function useIssueActions() {
       qc.invalidateQueries({ queryKey: ['transitions', a.key] });
     },
   });
+  // Lists come back from Jira in rank order, so reordering locally is just moving the item.
+  const moveLocal = (key: string, pos: 'before' | 'after', target: string) =>
+    qc.setQueriesData<Issue[]>({ queryKey: ['issues'] }, (old) => {
+      if (!old?.some((i) => i.key === target)) return old;
+      const item = old.find((i) => i.key === key);
+      if (!item) return old;
+      const rest = old.filter((i) => i.key !== key);
+      const t = rest.findIndex((i) => i.key === target);
+      rest.splice(pos === 'before' ? t : t + 1, 0, item);
+      return rest;
+    });
+
   /** Resolves to whether it succeeded; errors are already surfaced as toasts. */
   const run = (a: Action) => m.mutateAsync(a).then(() => true, () => false);
 
@@ -128,6 +147,17 @@ export function useIssueActions() {
       }),
     moveToSprint: (key: string, sprint: Sprint | null) =>
       run({ key, fn: () => api.moveToSprint(key, sprint?.id ?? null), success: `${key} → ${sprint?.name ?? 'Backlog'}` }),
+    rank: (key: string, pos: 'before' | 'after', target: string) =>
+      run({ key, fn: () => api.rank(key, pos, target), local: () => moveLocal(key, pos, target) }),
+    deleteIssue: (key: string) =>
+      run({
+        key,
+        fn: () => api.deleteIssue(key),
+        // Its subtasks go too.
+        local: () =>
+          qc.setQueriesData<Issue[]>({ queryKey: ['issues'] }, (old) => old?.filter((i) => i.key !== key && i.parent?.key !== key)),
+        success: `${key} eliminado`,
+      }),
     comment: (key: string, body: string) => run({ key, fn: () => api.comment(key, body) }),
     worklog: (key: string, body: { timeSpent: string; started: string; comment?: string }) =>
       run({ key, fn: () => api.worklog(key, body), success: `Registrado ${body.timeSpent} en ${key}` }),

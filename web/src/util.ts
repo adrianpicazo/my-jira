@@ -1,4 +1,4 @@
-import type { Status } from './types';
+import type { Column, IssueType, Status } from './types';
 
 const dayFmt = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' });
 const fullFmt = new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'short' });
@@ -45,19 +45,30 @@ function hash(s: string) {
 const PALETTE = ['#e5484d', '#f76b15', '#ffc53d', '#46a758', '#12a594', '#0090ff', '#5e6ad2', '#8e4ec6', '#d6409f', '#978365'];
 export const colorFor = (s: string) => PALETTE[hash(s) % PALETTE.length];
 
-/** Linear-style colour + "fill" for a Jira status, guessed from its category and name. */
-export function statusStyle(s: Status | null | undefined): { color: string; fill: number; kind: 'todo' | 'progress' | 'done' | 'cancel' } {
-  if (!s) return { color: 'var(--muted)', fill: 0, kind: 'todo' };
-  const n = s.name.toLowerCase();
-  if (s.category === 'done') {
-    if (/cancel|won.?t|descart|rechaz|duplica/.test(n)) return { color: 'var(--muted)', fill: 1, kind: 'cancel' };
-    return { color: '#5e6ad2', fill: 1, kind: 'done' };
-  }
-  if (s.category === 'new') return { color: 'var(--muted)', fill: 0, kind: 'todo' };
-  if (/block|bloq/.test(n)) return { color: '#e5484d', fill: 0.5, kind: 'progress' };
-  if (/deploy|release|merge/.test(n)) return { color: '#12a594', fill: 0.9, kind: 'progress' };
-  if (/qa|test|review|revis/.test(n)) return { color: '#46a758', fill: 0.75, kind: 'progress' };
-  return { color: '#f2c94c', fill: 0.5, kind: 'progress' };
+/** Jira-like colour per issue type, used for the bar on the left of each card. */
+export function typeColor(t: IssueType | null | undefined) {
+  if (!t) return 'var(--faint)';
+  const n = t.name.toLowerCase();
+  if (/bug|error|incidencia/.test(n)) return '#e5493a';
+  if (/stor|historia/.test(n)) return '#63ba3c';
+  if (/task|tarea/.test(n)) return '#4bade8';
+  return '#f2a03d';
+}
+
+/**
+ * Linear-style colour + "fill" for a Jira status. Derived only from its category and the
+ * position of its column on the board, so it works for any workflow.
+ */
+export function statusStyle(s: Status | null | undefined, columns: Column[] = []): { color: string; fill: number; kind: 'todo' | 'progress' | 'done' } {
+  if (!s || s.category === 'new') return { color: 'var(--muted)', fill: 0, kind: 'todo' };
+  if (s.category === 'done') return { color: '#5e6ad2', fill: 1, kind: 'done' };
+  const idx = columns.findIndex((c) => c.statusIds.includes(s.id));
+  const t = idx < 0 || columns.length < 2 ? 0.5 : idx / (columns.length - 1);
+  return {
+    color: `color-mix(in srgb, #46a758 ${Math.round(t * 100)}%, #f2c94c)`,
+    fill: 0.3 + 0.6 * t,
+    kind: 'progress',
+  };
 }
 
 export function initials(name: string) {

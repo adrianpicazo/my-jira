@@ -9,9 +9,12 @@ import { Avatar, Icon, StatusIcon } from './icons';
 import { IssueRow } from './IssueRow';
 import { AssigneePicker, StatusPicker } from './Pickers';
 import { SprintFilter } from './SprintFilter';
+import { StatusFilter, statusesOf } from './StatusFilter';
 import { Progress } from './Progress';
 import { SprintBoard } from './SprintBoard';
 import { useSlashFocus } from './useSlashFocus';
+
+const REFRESH_MS = 30_000;
 
 type GroupBy = 'epic' | 'status' | 'assignee' | 'none';
 
@@ -99,6 +102,9 @@ export function SprintView() {
   const laneBy: GroupBy = layout === 'board' && groupBy === 'status' ? 'none' : groupBy;
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [hiddenStatusStore, setHiddenStatusStore] = useLocalStorage<Record<string, string[]>>('hiddenStatusIds', {});
+  const hiddenStatusIds = hiddenStatusStore[board.id] ?? [];
+  const [collapsedStories, setCollapsedStories] = useLocalStorage<string[]>('collapsedStories', []);
   const searchRef = useRef<HTMLInputElement>(null);
   useSlashFocus(searchRef);
 
@@ -106,6 +112,8 @@ export function SprintView() {
     queryKey: ['issues', 'sprint', board.id, sprint?.id],
     queryFn: () => api.sprintIssues(board.id, sprint!.id),
     enabled: !!sprint,
+    // Keep the sprint in sync with changes made elsewhere (paused while the tab is hidden).
+    refetchInterval: REFRESH_MS,
   });
   const { data: columns } = useQuery({ queryKey: ['columns', board.id], queryFn: () => api.columns(board.id), staleTime: Infinity });
 
@@ -117,11 +125,23 @@ export function SprintView() {
     queryKey: ['issues', 'keys', epicKeys],
     queryFn: () => api.issuesByKeys(epicKeys),
     enabled: laneBy === 'epic' && epicKeys.length > 0,
+    refetchInterval: REFRESH_MS,
   });
   const epics = useMemo(() => new Map((epicIssues ?? []).map((e) => [e.key, e])), [epicIssues]);
 
   const all = issues ?? [];
-  const visible = applyFilters(all, filters);
+  const visible = applyFilters(
+    all.filter((i) => !hiddenStatusIds.includes(i.status?.id ?? '')),
+    filters,
+  );
+  // Stories with subtasks in view (on the board or as a placeholder): the ones the board can fold.
+  const storiesWithSubtasks = useMemo(
+    () => [...new Set(visible.filter((i) => i.issuetype?.subtask && i.parent).map((i) => i.parent!.key))],
+    [visible],
+  );
+  const allStoriesFolded = storiesWithSubtasks.length > 0 && storiesWithSubtasks.every((k) => collapsedStories.includes(k));
+  const toggleStory = (key: string) =>
+    setCollapsedStories(collapsedStories.includes(key) ? collapsedStories.filter((k) => k !== key) : [...collapsedStories, key]);
   const groups = groupIssues(visible, all, laneBy, columns, epics);
   const left = daysLeft(sprint?.endDate);
 
@@ -163,6 +183,25 @@ export function SprintView() {
       {sprint?.goal && <div className="sprint-goal">{sprint.goal}</div>}
       <div className="toolbar">
         <FilterBar filters={filters} onChange={setFilters} users={assigneesOf(all)} searchRef={searchRef} />
+        <StatusFilter
+          statuses={statusesOf(all, columns)}
+          hidden={hiddenStatusIds}
+          onChange={(ids) => setHiddenStatusStore({ ...hiddenStatusStore, [board.id]: ids })}
+        />
+        {layout === 'board' && storiesWithSubtasks.length > 0 && (
+          <button
+            className="btn btn-ghost"
+            onClick={() =>
+              setCollapsedStories(
+                allStoriesFolded
+                  ? collapsedStories.filter((k) => !storiesWithSubtasks.includes(k))
+                  : [...new Set([...collapsedStories, ...storiesWithSubtasks])],
+              )
+            }
+          >
+            <Icon.Chevron open={!allStoriesFolded} /> {allStoriesFolded ? 'Desplegar subtareas' : 'Plegar subtareas'}
+          </button>
+        )}
         <div className="tabs">
           <button className={`tab${layout === 'list' ? ' on' : ''}`} onClick={() => setLayout('list')}>
             Lista
@@ -190,7 +229,21 @@ export function SprintView() {
       {error && <div className="empty error">{(error as Error).message}</div>}
       {issues && !visible.length && <div className="empty">Nada que mostrar con estos filtros.</div>}
       {layout === 'board' ? (
-        issues && visible.length > 0 && <SprintBoard groups={groups} columns={columns} issues={visible} collapsed={collapsed} onToggle={toggle} showParent={laneBy !== 'epic'} />
+        issues && visible.length > 0 && (
+          <SprintBoard
+            groups={groups}
+            columns={columns}
+            issues={visible}
+            allIssues={all}
+            currentSprintId={sprint?.id}
+            collapsed={collapsed}
+            onToggle={toggle}
+            showParent={laneBy !== 'epic'}
+            hiddenStatusIds={hiddenStatusIds}
+            collapsedStories={collapsedStories}
+            onToggleStory={toggleStory}
+          />
+        )
       ) : (
       <div className="list">
         {groups.map((g) =>

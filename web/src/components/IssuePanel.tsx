@@ -258,7 +258,15 @@ export function IssuePanel({ issueKey, onClose, onOpen }: { issueKey: string; on
               </>
             )}
             <span className="muted">›</span>
-            <span>{issueKey}</span>
+            <button
+              className="copy-key"
+              title="Copiar enlace a Jira"
+              disabled={!issue}
+              onClick={() => issue && navigator.clipboard.writeText(issue.url).then(() => toast(`Enlace a ${issueKey} copiado`))}
+            >
+              {issueKey}
+              <Icon.Link size={13} />
+            </button>
           </div>
           <div className="panel-actions">
             <button

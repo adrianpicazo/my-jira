@@ -1,18 +1,17 @@
+import { useContext } from 'react';
+import { AppContext } from '../hooks';
 import type { Status, User } from '../types';
 import { colorFor, initials, statusStyle } from '../util';
 
 export function StatusIcon({ status, size = 14 }: { status: Status | null | undefined; size?: number }) {
-  const { color, fill, kind } = statusStyle(status);
+  const columns = useContext(AppContext)?.columns;
+  const { color, fill, kind } = statusStyle(status, columns);
   const r = 6;
-  if (kind === 'done' || kind === 'cancel') {
+  if (kind === 'done') {
     return (
       <svg width={size} height={size} viewBox="0 0 14 14" aria-label={status?.name}>
         <circle cx="7" cy="7" r={r} fill={color} stroke={color} strokeWidth="1.5" />
-        {kind === 'done' ? (
-          <path d="M4.3 7.2 6.1 9l3.6-3.8" fill="none" stroke="var(--bg)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        ) : (
-          <path d="M4.8 4.8l4.4 4.4M9.2 4.8 4.8 9.2" stroke="var(--bg)" strokeWidth="1.5" strokeLinecap="round" />
-        )}
+        <path d="M4.3 7.2 6.1 9l3.6-3.8" fill="none" stroke="var(--bg)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     );
   }
@@ -23,15 +22,7 @@ export function StatusIcon({ status, size = 14 }: { status: Status | null | unde
   const large = fill > 0.5 ? 1 : 0;
   return (
     <svg width={size} height={size} viewBox="0 0 14 14" aria-label={status?.name}>
-      <circle
-        cx="7"
-        cy="7"
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth="1.5"
-        strokeDasharray={kind === 'todo' && /backlog/i.test(status?.name ?? '') ? '1.4 1.6' : undefined}
-      />
+      <circle cx="7" cy="7" r={r} fill="none" stroke={color} strokeWidth="1.5" />
       {fill > 0 && fill < 1 && <path d={`M7 7V${7 - ir}A${ir} ${ir} 0 ${large} 1 ${x} ${y}Z`} fill={color} />}
     </svg>
   );
@@ -173,6 +164,31 @@ export const Icon = {
   Epic: ({ size = 14, color }: IconProps & { color: string }) => (
     <svg width={size} height={size} viewBox="0 0 14 14">
       <rect x="1" y="1" width="12" height="12" rx="3.5" fill={color} />
+    </svg>
+  ),
+  Link: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <path d="M6.8 9.2a2.8 2.8 0 0 0 4 0l2-2a2.8 2.8 0 0 0-4-4l-.9.9M9.2 6.8a2.8 2.8 0 0 0-4 0l-2 2a2.8 2.8 0 0 0 4 4l.9-.9" {...stroke} />
+    </svg>
+  ),
+  Trash: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" {...stroke} />
+    </svg>
+  ),
+  Move: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <path d="M8 2.5v11M5.5 5 8 2.5 10.5 5M5.5 11 8 13.5l2.5-2.5" {...stroke} />
+    </svg>
+  ),
+  ArrowUp: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <path d="M8 13V3M4 7l4-4 4 4" {...stroke} />
+    </svg>
+  ),
+  ArrowDown: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <path d="M8 3v10M4 9l4 4 4-4" {...stroke} />
     </svg>
   ),
   Refresh: ({ size = 14 }: IconProps) => (

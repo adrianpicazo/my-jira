@@ -1130,7 +1130,9 @@ code {
 .card {
   background: var(--bg-3);
   border: 1px solid var(--border-2);
+  border-left: 3px solid var(--type, var(--border-2));
   border-radius: 7px;
+  transition: box-shadow 0.2s, border-color 0.2s;
   padding: 8px 10px;
   cursor: grab;
   display: flex;
@@ -1171,4 +1173,250 @@ code {
 }
 .card-status {
   display: flex;
+}
+
+.board-chooser {
+  background: var(--bg-3);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.card-subtasks {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 -10px -8px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border-2);
+  font-size: 12px;
+  color: var(--text-2);
+  border-radius: 0 0 7px 7px;
+}
+.card-subtasks:hover {
+  background: var(--hover);
+}
+
+.card-sub {
+  width: 85%;
+  align-self: flex-end;
+}
+.card-hover {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.card-flash {
+  animation: flash 5s ease-out;
+}
+@keyframes flash {
+  0%,
+  70% {
+    box-shadow: 0 0 0 2px var(--accent), 0 0 14px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.copy-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+.copy-key svg {
+  opacity: 0;
+  color: var(--muted);
+  transition: opacity 0.1s;
+}
+.copy-key:hover {
+  background: var(--hover);
+}
+.copy-key:hover svg {
+  opacity: 1;
+}
+
+.subtask-stats {
+  position: relative;
+}
+.tooltip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 190px;
+  padding: 6px 0;
+  background: var(--bg-3);
+  border-radius: 7px;
+  box-shadow: var(--shadow);
+  color: var(--text);
+  cursor: default;
+}
+.subtask-stats:hover .tooltip {
+  display: block;
+}
+.tooltip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 10px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.tooltip-total {
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-2);
+  padding-bottom: 6px;
+  margin-bottom: 3px;
+}
+.tooltip-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Placeholder for a story that isn't in this cell, heading its subtasks */
+.cell-parent {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 10px 8px;
+  border: 1px dashed var(--border-2);
+  border-left: 3px solid var(--type, var(--border-2));
+  border-radius: 7px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  min-width: 0;
+}
+.cell-parent[draggable='true'] {
+  cursor: grab;
+}
+.cell-parent:hover {
+  color: var(--text);
+  border-color: var(--faint);
+}
+.cell-parent.dragging {
+  opacity: 0.4;
+}
+.cell-parent-title {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.cell-parent .row-key {
+  width: auto;
+  flex: none;
+}
+
+/* A story/task with its subtasks moves as one block */
+.unit {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.card {
+  position: relative;
+}
+.unit.drop-before::before,
+.unit.drop-after::after,
+.card.drop-before::before,
+.card.drop-after::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.unit.drop-before::before,
+.card.drop-before::before {
+  top: -4px;
+}
+.unit.drop-after::after,
+.card.drop-after::after {
+  bottom: -4px;
+}
+
+/* ---------- Context menu ---------- */
+
+.ctx {
+  position: fixed;
+  z-index: 120;
+  min-width: 220px;
+  padding: 4px;
+  background: var(--bg-3);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  animation: pop 0.08s ease-out;
+}
+.ctx-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: default;
+  user-select: none;
+}
+.ctx-item:hover,
+.ctx-item.active {
+  background: var(--active);
+}
+.ctx-item > svg {
+  color: var(--muted);
+}
+.ctx-item.danger {
+  color: var(--danger);
+}
+.ctx-item.danger .menu-icon {
+  color: var(--danger);
+}
+.ctx-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border-2);
+}
+.ctx-sub {
+  position: absolute;
+  left: calc(100% + 4px);
+  top: -4px;
+  background: var(--bg-3);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  cursor: auto;
+}
+.ctx-sub.flip {
+  left: auto;
+  right: calc(100% + 4px);
+}
+.ctx-sub.up {
+  top: auto;
+  bottom: -4px;
+}
+
+.offscreen-hint {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  animation: pop 0.12s ease-out;
 }

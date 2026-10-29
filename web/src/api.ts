@@ -26,6 +26,7 @@ export const api = {
   issuesByKeys: (keys: string[]) => req<Issue[]>(`/issues?keys=${enc(keys.join(','))}`),
   issue: (key: string) => req<IssueDetail>(`/issues/${enc(key)}`),
   updateIssue: (key: string, patch: IssuePatch) => req(`/issues/${enc(key)}`, { method: 'PUT', body: patch }),
+  deleteIssue: (key: string) => req(`/issues/${enc(key)}`, { method: 'DELETE' }),
   transitions: (key: string) => req<Transition[]>(`/issues/${enc(key)}/transitions`),
   transition: (key: string, id: string) => req(`/issues/${enc(key)}/transitions`, { method: 'POST', body: { id } }),
   comment: (key: string, body: string) => req(`/issues/${enc(key)}/comments`, { method: 'POST', body: { body } }),
@@ -33,6 +34,8 @@ export const api = {
     req(`/issues/${enc(key)}/worklog`, { method: 'POST', body }),
   moveToSprint: (key: string, sprintId: number | null) =>
     req(`/issues/${enc(key)}/sprint`, { method: 'POST', body: { sprintId } }),
+  rank: (key: string, pos: 'before' | 'after', target: string) =>
+    req('/rank', { method: 'PUT', body: { issues: [key], [pos]: target } }),
   assignable: (issueKey: string, query: string) =>
     req<User[]>(`/users/assignable?issueKey=${enc(issueKey)}&query=${enc(query)}`),
   labels: () => req<string[]>('/labels'),

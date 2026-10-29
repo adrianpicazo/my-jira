@@ -20,7 +20,7 @@ function Trigger({ variant, title, children, ...rest }: { variant: Variant; titl
 
 /* ---------- Status ---------- */
 
-function StatusMenu({ issueKey, status, close }: { issueKey: string; status: Status | null; close: () => void }) {
+export function StatusMenu({ issueKey, status, close }: { issueKey: string; status: Status | null; close: () => void }) {
   const { transition } = useIssueActions();
   const { data, isLoading } = useQuery({ queryKey: ['transitions', issueKey], queryFn: () => api.transitions(issueKey) });
   const items: MenuItem[] = (data ?? []).map((t) => ({
@@ -122,7 +122,7 @@ export function AssigneePicker({ issueKey, assignee, variant = 'icon' }: { issue
 
 /* ---------- Labels ---------- */
 
-function LabelsMenu({ issueKey, labels }: { issueKey: string; labels: string[] }) {
+export function LabelsMenu({ issueKey, labels }: { issueKey: string; labels: string[] }) {
   const { setLabels } = useIssueActions();
   const [current, setCurrent] = useState(labels);
   const [q, setQ] = useState('');

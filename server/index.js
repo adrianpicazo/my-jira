@@ -253,6 +253,11 @@ app.put('/api/issues/:key', async (req, res) => {
   res.json({ ok: true });
 });
 
+app.delete('/api/issues/:key', async (req, res) => {
+  await jira(`/rest/api/3/issue/${k(req)}`, { method: 'DELETE', query: { deleteSubtasks: 'true' } });
+  res.json({ ok: true });
+});
+
 app.get('/api/issues/:key/transitions', async (req, res) => {
   const data = await jira(`/rest/api/3/issue/${k(req)}/transitions`);
   res.json(data.transitions.map((t) => ({ id: t.id, name: t.name, to: status(t.to) })));
@@ -285,6 +290,20 @@ app.post('/api/issues/:key/sprint', async (req, res) => {
   const body = { issues: [req.params.key] };
   if (sprintId) await jira(`/rest/agile/1.0/sprint/${sprintId}/issue`, { method: 'POST', body });
   else await jira('/rest/agile/1.0/backlog/issue', { method: 'POST', body });
+  res.json({ ok: true });
+});
+
+// Jira rank is global; the Agile API accepts either rankBeforeIssue or rankAfterIssue.
+app.put('/api/rank', async (req, res) => {
+  const { issues, before, after } = req.body ?? {};
+  if (!Array.isArray(issues) || !issues.length || (!before && !after)) throw new HttpError(400, 'Parámetros de orden inválidos');
+  const data = await jira('/rest/agile/1.0/issue/rank', {
+    method: 'PUT',
+    body: { issues, ...(before ? { rankBeforeIssue: before } : { rankAfterIssue: after }) },
+  });
+  // 207 Multi-Status reports per-issue failures inside a 2xx response.
+  const failed = (data?.entries ?? []).filter((e) => e.status >= 400);
+  if (failed.length) throw new HttpError(400, failed.flatMap((f) => f.errors ?? []).join(' · ') || 'No se pudo reordenar');
   res.json({ ok: true });
 });
 
