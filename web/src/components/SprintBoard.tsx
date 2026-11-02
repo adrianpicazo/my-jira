@@ -192,7 +192,8 @@ export function SubtaskStats({ subtasks, columns }: { subtasks: Issue[]; columns
   );
 }
 
-const MIN_WIDTH = 48;
+/** Rough width of a minimized column (five letters and a count), for the board's min-width. */
+const MIN_WIDTH = 80;
 
 /** A minimized column's cell: how many cards it holds, their titles on hover, expand on click. */
 function MinimizedCell({ issues, alignRight, onExpand }: { issues: Issue[]; alignRight: boolean; onExpand: () => void }) {
@@ -450,7 +451,7 @@ export function SprintBoard({
 
   const isFolded = (i: Issue) => !!i.issuetype?.subtask && !!i.parent && collapsedStories.includes(i.parent.key);
   const isMin = (c: Column) => minimized.includes(colKey(c));
-  const grid: CSSProperties = { gridTemplateColumns: columns.map((c) => (isMin(c) ? `${MIN_WIDTH}px` : 'minmax(260px, 1fr)')).join(' ') };
+  const grid: CSSProperties = { gridTemplateColumns: columns.map((c) => (isMin(c) ? 'max-content' : 'minmax(260px, 1fr)')).join(' ') };
 
   /* ---------- drag & drop ---------- */
 
@@ -568,10 +569,11 @@ export function SprintBoard({
                 <button
                   key={key}
                   className="board-col-head board-col-min"
-                  title={`${c.name} · ${n}. Pulsa para expandir`}
+                  title={`${c.name} · pulsa para expandir`}
                   onClick={() => setMinimized(key, false)}
                   onContextMenu={(e) => openColMenu(e, key)}
                 >
+                  <span>{c.name.slice(0, 5).trim()}</span>
                   <span className="muted">{n}</span>
                 </button>
               );
