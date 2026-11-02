@@ -292,7 +292,7 @@ export function SprintView() {
       <div className="list">
         {groups.map((g) =>
           g.header === null ? (
-            g.issues.map((i) => <IssueRow key={i.key} issue={i} onContextMenu={(e) => openMenu(e, i)} />)
+            g.issues.map((i) => <IssueRow key={i.key} issue={i} preview onContextMenu={(e) => openMenu(e, i)} />)
           ) : (
             <section key={g.id} className="group">
               <div className="group-header" onClick={() => toggle(g.id)}>
@@ -304,7 +304,7 @@ export function SprintView() {
               </div>
               {!collapsed.has(g.id) &&
                 g.issues.map((i) => (
-                  <IssueRow key={i.key} issue={i} showParent={groupBy !== 'epic'} onContextMenu={(e) => openMenu(e, i)} />
+                  <IssueRow key={i.key} issue={i} preview showParent={groupBy !== 'epic'} onContextMenu={(e) => openMenu(e, i)} />
                 ))}
             </section>
           ),

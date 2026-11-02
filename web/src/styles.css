@@ -1576,3 +1576,40 @@ code {
 .sprint-section.drop-target .sprint-header {
   background: color-mix(in srgb, var(--accent) 14%, var(--bg-2));
 }
+
+/* ---------- Hover preview (list rows) ---------- */
+.hover-preview {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 320px;
+  padding: 12px 14px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  animation: hover-preview-in 0.12s ease-out;
+}
+.hover-preview-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+}
+.hover-preview-body {
+  font-size: 13px;
+  min-height: 0;
+  overflow: hidden;
+}
+.hover-preview-body.clipped {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+}
+@keyframes hover-preview-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}

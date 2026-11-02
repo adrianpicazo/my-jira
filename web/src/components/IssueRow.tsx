@@ -1,17 +1,21 @@
 import { useApp } from '../hooks';
 import type { Issue } from '../types';
 import { colorFor } from '../util';
+import { useHoverPreview } from './HoverPreview';
 import { Icon, PriorityIcon } from './icons';
 import { AssigneePicker, LabelChips, StatusPicker } from './Pickers';
 
 export function IssueRow({
   issue,
   showParent = true,
+  preview = false,
   onContextMenu,
   drag,
 }: {
   issue: Issue;
   showParent?: boolean;
+  /** Show description and reporter after hovering for a while. */
+  preview?: boolean;
   onContextMenu?: (e: React.MouseEvent) => void;
   drag?: {
     onDragStart: () => void;
@@ -22,11 +26,16 @@ export function IssueRow({
 }) {
   const { openIssue } = useApp();
   const extra = issue.labels.length - 2;
+  const hover = useHoverPreview(issue.key, preview);
   return (
     <div
       className={`row${drag?.dropPos ? ` drop-${drag.dropPos}` : ''}`}
       draggable={!!drag}
+      onMouseEnter={hover.handlers.onMouseEnter}
+      onMouseLeave={hover.handlers.onMouseLeave}
+      onMouseDown={hover.handlers.onMouseDown}
       onDragStart={(e) => {
+        hover.handlers.onDragStart?.();
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', issue.key);
         drag?.onDragStart();
@@ -36,7 +45,10 @@ export function IssueRow({
       role="button"
       tabIndex={0}
       onClick={() => openIssue(issue.key)}
-      onContextMenu={onContextMenu}
+      onContextMenu={(e) => {
+        hover.handlers.onContextMenu?.();
+        onContextMenu?.(e);
+      }}
       onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && openIssue(issue.key)}
     >
       <span className="row-priority" title={issue.priority?.name}>
@@ -59,6 +71,7 @@ export function IssueRow({
         )}
       </span>
       <AssigneePicker issueKey={issue.key} assignee={issue.assignee} />
+      {hover.preview}
     </div>
   );
 }
