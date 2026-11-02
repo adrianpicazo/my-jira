@@ -35,8 +35,8 @@ export const api = {
   sprints: (boardId: number) => req<Sprint[]>(`/boards/${boardId}/sprints`),
   columns: (boardId: number) => req<Column[]>(`/boards/${boardId}/columns`),
   sprintIssues: (boardId: number, sprintId: number) => req<Issue[]>(`/boards/${boardId}/sprints/${sprintId}/issues`),
-  sprintCount: (boardId: number, sprintId: number) =>
-    req<{ total: number }>(`/boards/${boardId}/sprints/${sprintId}/count`),
+  sprintCount: (boardId: number, sprintId: number, hideDone = false) =>
+    req<{ total: number }>(`/boards/${boardId}/sprints/${sprintId}/count${hideDone ? '?hideDone=1' : ''}`),
   backlog: (boardId: number) => req<Issue[]>(`/boards/${boardId}/backlog`),
   backlogCount: (boardId: number) => req<{ total: number }>(`/boards/${boardId}/backlog/count`),
   issuesByKeys: (keys: string[]) => req<Issue[]>(`/issues?keys=${enc(keys.join(','))}`),

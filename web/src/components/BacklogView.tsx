@@ -43,9 +43,11 @@ function Section({ sprint, open, onToggle, filters, dnd }: { sprint: Sprint | nu
   const id = sprint?.id ?? 'backlog';
   const sectionId = String(id);
   const queryKey: QueryKey = sprint ? ['issues', 'sprint', board.id, sprint.id] : ['issues', 'backlog', board.id];
+  // Done work only matters in the sprint that's running.
+  const showDone = sprint?.state === 'active';
   const { data: count } = useQuery({
     queryKey: ['count', board.id, id],
-    queryFn: () => (sprint ? api.sprintCount(board.id, sprint.id) : api.backlogCount(board.id)),
+    queryFn: () => (sprint ? api.sprintCount(board.id, sprint.id, !showDone) : api.backlogCount(board.id)),
   });
   const { data: issues, isLoading, error } = useQuery({
     queryKey,
@@ -53,14 +55,14 @@ function Section({ sprint, open, onToggle, filters, dnd }: { sprint: Sprint | nu
     enabled: open,
   });
   const { data: columns = [] } = useQuery({ queryKey: ['columns', board.id], queryFn: () => api.columns(board.id), staleTime: Infinity });
-  // Subtasks fold into their story's row; done work is hidden from the backlog itself.
+  // Subtasks fold into their story's row.
   const subtasksOf = new Map<string, Issue[]>();
   for (const i of issues ?? []) if (isSub(i) && i.parent) subtasksOf.set(i.parent.key, [...(subtasksOf.get(i.parent.key) ?? []), i]);
   const matching = new Set(issues ? applyFilters(issues, filters).map((i) => i.key) : []);
   const visible = (issues ?? []).filter(
-    (i) => !isSub(i) && (sprint || i.status?.category !== 'done') && (matching.has(i.key) || subtasksOf.get(i.key)?.some((s) => matching.has(s.key))),
+    (i) => !isSub(i) && (showDone || i.status?.category !== 'done') && (matching.has(i.key) || subtasksOf.get(i.key)?.some((s) => matching.has(s.key))),
   );
-  const listed = (issues ?? []).filter((i) => !isSub(i) && (sprint || i.status?.category !== 'done'));
+  const listed = (issues ?? []).filter((i) => !isSub(i) && (showDone || i.status?.category !== 'done'));
   const [menu, setMenu] = useState<MenuState | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   // Stories/tasks rank among the section's stories/tasks; subtasks only among their siblings.
