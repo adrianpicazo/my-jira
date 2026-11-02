@@ -268,7 +268,7 @@ export function BacklogView() {
   }, [clearSelection]);
   const visible = sprints.filter((s) => !hiddenSprintIds.includes(s.id));
   const [expanded, setExpanded] = useLocalStorage<(number | 'backlog')[]>(`expanded:${board.id}`, []);
-  const [filters, setFilters] = useState<Filters>(emptyFilters);
+  const [filters, setFilters] = useLocalStorage<Filters>(`filters:backlog:${board.id}`, emptyFilters);
   const searchRef = useRef<HTMLInputElement>(null);
   useSlashFocus(searchRef);
   const drag = useRef<DragInfo | null>(null);

@@ -4,22 +4,40 @@ import { api } from './api';
 import { toast } from './toast';
 import type { Board, Column, Issue, IssueDetail, IssuePatch, Me, Priority, Sprint, Transition, User } from './types';
 
+function readStorage<T>(key: string, initial: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? initial : (JSON.parse(raw) as T);
+  } catch {
+    return initial;
+  }
+}
+
+/** State kept in localStorage, so it survives switching views and reloads. Re-reads when `key` changes (e.g. per board). */
 export function useLocalStorage<T>(key: string, initial: T) {
-  const [value, setValue] = useState<T>(() => {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw === null ? initial : (JSON.parse(raw) as T);
-    } catch {
-      return initial;
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch {
-      /* storage unavailable */
-    }
-  }, [key, value]);
+  const [state, setState] = useState(() => ({ key, value: readStorage(key, initial) }));
+  // A new key (another board) starts from what's stored under it, not from the previous key's value.
+  let value = state.value;
+  if (state.key !== key) {
+    value = readStorage(key, initial);
+    setState({ key, value });
+  }
+  const setValue = useCallback(
+    (v: T | ((prev: T) => T)) =>
+      setState((s) => {
+        const prev = s.key === key ? s.value : readStorage(key, initial);
+        const next = typeof v === 'function' ? (v as (p: T) => T)(prev) : v;
+        try {
+          localStorage.setItem(key, JSON.stringify(next));
+        } catch {
+          /* storage unavailable */
+        }
+        return { key, value: next };
+      }),
+    // `initial` is only a fallback; callers pass literals.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [key],
+  );
   return [value, setValue] as const;
 }
 

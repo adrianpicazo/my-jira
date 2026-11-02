@@ -102,8 +102,11 @@ export function SprintView() {
   const [layout, setLayout] = useLocalStorage<'list' | 'board'>('layout', 'list');
   // In the board, status is already the column axis.
   const laneBy: GroupBy = layout === 'board' && groupBy === 'status' ? 'none' : groupBy;
-  const [filters, setFilters] = useState<Filters>(emptyFilters);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [filters, setFilters] = useLocalStorage<Filters>(`filters:sprint:${board.id}`, emptyFilters);
+  const [collapsedList, setCollapsedList] = useLocalStorage<string[]>(`collapsedLanes:${board.id}`, []);
+  const collapsed = useMemo(() => new Set(collapsedList), [collapsedList]);
+  const setCollapsed = (next: Set<string> | ((s: Set<string>) => Set<string>)) =>
+    setCollapsedList((prev) => [...(typeof next === 'function' ? next(new Set(prev)) : next)]);
   const [hiddenStatusStore, setHiddenStatusStore] = useLocalStorage<Record<string, string[]>>('hiddenStatusIds', {});
   const hiddenStatusIds = hiddenStatusStore[board.id] ?? [];
   const [collapsedStories, setCollapsedStories] = useLocalStorage<string[]>('collapsedStories', []);
