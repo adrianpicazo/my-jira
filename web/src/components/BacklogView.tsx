@@ -5,13 +5,14 @@ import { useApp, useIssueActions, useLocalStorage } from '../hooks';
 import type { Issue, Sprint } from '../types';
 import { fmtRange } from '../util';
 import { applyFilters, emptyFilters, FilterBar, type Filters } from './FilterBar';
-import { Icon } from './icons';
+import { Icon, StatusIcon } from './icons';
 import { BacklogMenu, rankMoves, type MenuState } from './CardMenu';
 import { IssueRow } from './IssueRow';
 import { ContextMenu } from './ContextMenu';
 import { Menu } from './Menu';
 import { SprintFilter } from './SprintFilter';
 import { Progress } from './Progress';
+import { statusesOf } from './StatusFilter';
 import { useSlashFocus } from './useSlashFocus';
 
 type DropPos = 'before' | 'after';
@@ -74,10 +75,12 @@ function Section({
     queryKey: ['count', board.id, id],
     queryFn: () => (sprint ? api.sprintCount(board.id, sprint.id, !showDone) : api.backlogCount(board.id)),
   });
+  const [peek, setPeek] = useState(false);
   const { data: issues, isLoading, error } = useQuery({
     queryKey,
     queryFn: () => (sprint ? api.sprintIssues(board.id, sprint.id) : api.backlog(board.id)),
-    enabled: open,
+    // Also loaded while hovering the count of a folded section, for its per-status tooltip.
+    enabled: open || peek,
   });
   const { data: columns = [] } = useQuery({ queryKey: ['columns', board.id], queryFn: () => api.columns(board.id), staleTime: Infinity });
   // Subtasks fold into their story's row.
@@ -187,8 +190,30 @@ function Section({
         <span className="sprint-name">{sprint?.name ?? 'Backlog'}</span>
         {sprint?.state === 'active' && <span className="badge badge-active">Activo</span>}
         {sprint && <span className="muted">{fmtRange(sprint.startDate, sprint.endDate)}</span>}
-        <span className="muted">
+        <span className="muted count-stats" onMouseEnter={() => setPeek(true)}>
           {count ? `${filtering && issues ? `${visible.length} de ` : ''}${count.total} issues` : ''}
+          {count && count.total > 0 && (
+            <span className="tooltip">
+              {issues ? (
+                <>
+                  <span className="tooltip-row tooltip-total">
+                    <span>Total</span>
+                    <span>{listed.length}</span>
+                  </span>
+                  {statusesOf(listed, columns).map((st) => (
+                    <span key={st.id} className="tooltip-row">
+                      <span className="tooltip-status">
+                        <StatusIcon status={st} size={12} /> {st.name}
+                      </span>
+                      <span>{listed.filter((x) => x.status?.id === st.id).length}</span>
+                    </span>
+                  ))}
+                </>
+              ) : (
+                <span className="tooltip-row">Cargando…</span>
+              )}
+            </span>
+          )}
         </span>
         <span className="spacer" />
         {listed.length > 0 && <Progress issues={listed} />}

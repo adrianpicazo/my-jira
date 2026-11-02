@@ -1445,6 +1445,15 @@ code {
   color: var(--text);
   cursor: default;
 }
+.count-stats {
+  position: relative;
+  cursor: default;
+}
+/* Above the sticky headers of the sections below. */
+.sprint-header:has(.count-stats:hover) {
+  z-index: 5;
+}
+.count-stats:hover > .tooltip,
 .subtask-stats:hover > .tooltip {
   display: block;
 }
