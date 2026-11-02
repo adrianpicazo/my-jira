@@ -338,8 +338,8 @@ export function IssuePanel({ issueKey, onClose, onOpen }: { issueKey: string; on
               <Prop label="Sprint">
                 <SprintPicker issueKey={issue.key} sprint={issue.sprint} />
               </Prop>
-              <Prop label="Padre">
-                <ParentPicker issueKey={issue.key} project={issue.project.key} parent={issue.parent} />
+              <Prop label={issue.issuetype?.subtask ? 'Historia' : 'Épica'}>
+                <ParentPicker issueKey={issue.key} project={issue.project.key} parent={issue.parent} subtask={!!issue.issuetype?.subtask} />
               </Prop>
               <Prop label="Tipo">
                 <span className="static">

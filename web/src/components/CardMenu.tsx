@@ -108,9 +108,11 @@ function useEntries(issue: Issue) {
     submenu: (close) => <PriorityMenu issue={issue} close={close} />,
   };
   const parent: ContextItem = {
-    label: 'Cambiar padre',
+    label: subtask ? 'Cambiar historia' : 'Cambiar épica',
     icon: <Icon.Epic color="var(--muted)" size={12} />,
-    submenu: (close) => <ParentMenu issueKey={issue.key} project={issue.key.split('-')[0]!} parent={issue.parent} close={close} />,
+    submenu: (close) => (
+      <ParentMenu issueKey={issue.key} project={issue.key.split('-')[0]!} parent={issue.parent} subtask={subtask} close={close} />
+    ),
   };
   const remove: ContextItem = {
     label: 'Eliminar',
@@ -175,6 +177,7 @@ export function CardMenu({ state, currentSprintId, onClose }: { state: MenuState
     e.copyLink,
     e.assign,
     'separator',
+    e.parent,
     e.labels,
     'separator',
     e.remove,

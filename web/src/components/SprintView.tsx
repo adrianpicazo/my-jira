@@ -1,9 +1,10 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useApp, useLocalStorage } from '../hooks';
 import type { Column, Issue, ParentRef, User } from '../types';
 import { colorFor, daysLeft, fmtRange } from '../util';
+import { BacklogMenu, rankMoves, type MenuState } from './CardMenu';
 import { EpicFilter, NO_EPIC, type EpicOption } from './EpicFilter';
 import { applyFilters, assigneesOf, emptyFilters, FilterBar, type Filters } from './FilterBar';
 import { Avatar, Icon, StatusIcon } from './icons';
@@ -110,6 +111,8 @@ export function SprintView() {
   const hiddenEpics = hiddenEpicStore[board.id] ?? [];
   const searchRef = useRef<HTMLInputElement>(null);
   useSlashFocus(searchRef);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
 
   const { data: issues, isLoading, error } = useQuery({
     queryKey: ['issues', 'sprint', board.id, sprint?.id],
@@ -147,6 +150,14 @@ export function SprintView() {
     return out;
   }, [all, byKey, epics]);
   const epicFiltered = laneBy === 'epic' && hiddenEpics.length > 0;
+  // Same menu as the backlog: stories/tasks rank among the sprint's, subtasks only among their siblings.
+  const openMenu = (e: React.MouseEvent, issue: Issue) => {
+    e.preventDefault();
+    const peers = all
+      .filter((i) => (issue.issuetype?.subtask ? i.issuetype?.subtask && i.parent?.key === issue.parent?.key : !i.issuetype?.subtask))
+      .map((i) => i.key);
+    setMenu({ x: e.clientX, y: e.clientY, issue, moves: rankMoves(issue.key, peers) });
+  };
   const visible = applyFilters(
     all.filter((i) => !hiddenStatusIds.includes(i.status?.id ?? '') && (!epicFiltered || !hiddenEpics.includes(epicKeyOf(i)))),
     filters,
@@ -281,7 +292,7 @@ export function SprintView() {
       <div className="list">
         {groups.map((g) =>
           g.header === null ? (
-            g.issues.map((i) => <IssueRow key={i.key} issue={i} />)
+            g.issues.map((i) => <IssueRow key={i.key} issue={i} onContextMenu={(e) => openMenu(e, i)} />)
           ) : (
             <section key={g.id} className="group">
               <div className="group-header" onClick={() => toggle(g.id)}>
@@ -291,12 +302,16 @@ export function SprintView() {
                   <Progress issues={g.issues} />
                 </span>
               </div>
-              {!collapsed.has(g.id) && g.issues.map((i) => <IssueRow key={i.key} issue={i} showParent={groupBy !== 'epic'} />)}
+              {!collapsed.has(g.id) &&
+                g.issues.map((i) => (
+                  <IssueRow key={i.key} issue={i} showParent={groupBy !== 'epic'} onContextMenu={(e) => openMenu(e, i)} />
+                ))}
             </section>
           ),
         )}
       </div>
       )}
+      {menu && <BacklogMenu state={menu} sprintId={sprint?.id ?? null} onClose={closeMenu} />}
     </div>
   );
 }

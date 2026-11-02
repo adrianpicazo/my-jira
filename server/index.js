@@ -80,7 +80,7 @@ async function agilePaged(pathname, key, query = {}) {
   return out;
 }
 
-async function searchJql(jql, fields, maxResults = 100) {
+async function searchJql(jql, fields, maxResults = 100, limit = 1000) {
   const out = [];
   let nextPageToken;
   do {
@@ -90,8 +90,8 @@ async function searchJql(jql, fields, maxResults = 100) {
     });
     out.push(...(data.issues ?? []));
     nextPageToken = data.nextPageToken;
-  } while (nextPageToken && out.length < 1000);
-  return out;
+  } while (nextPageToken && out.length < limit);
+  return out.slice(0, limit);
 }
 
 const user = (u) =>
@@ -439,15 +439,26 @@ app.get('/api/labels', async (_req, res) => {
   res.json(labelsCache.get(ctx().api).values);
 });
 
+// Issue type ids per hierarchy level (1 = epic, 0 = story/task), so no type names are assumed.
+const typesCache = new Map();
+async function typeIds(level) {
+  let types = typesCache.get(ctx().api);
+  if (!types) typesCache.set(ctx().api, (types = await jira('/rest/api/3/issuetype')));
+  return [...new Set(types.filter((t) => (t.hierarchyLevel ?? (t.subtask ? -1 : 0)) === level && !t.subtask).map((t) => t.id))];
+}
+
+// Candidate parents: epics for stories/tasks, or stories/tasks when `level=story` (for subtasks).
 app.get('/api/parents', async (req, res) => {
   const project = String(req.query.project ?? '').replace(/[^A-Z0-9_]/gi, '');
   const q = String(req.query.query ?? '').trim();
-  let jql = `issuetype = Epic AND statusCategory != Done`;
+  const ids = await typeIds(req.query.level === 'story' ? 0 : 1);
+  if (!ids.length) return res.json([]);
+  let jql = `issuetype in (${ids.join(',')}) AND statusCategory != Done`;
   if (project) jql = `project = "${project}" AND ${jql}`;
   if (/^[A-Z][A-Z0-9_]*-\d+$/i.test(q)) jql = `key = "${q}"`;
   else if (q) jql += ` AND summary ~ "${q.replace(/["\\]/g, '')}*"`;
   try {
-    const issues = await searchJql(`${jql} ORDER BY updated DESC`, LIST_FIELDS.split(','), 50);
+    const issues = await searchJql(`${jql} ORDER BY updated DESC`, LIST_FIELDS.split(','), 50, 50);
     res.json(issues.map(slimIssue));
   } catch (e) {
     if (e.status === 400) return res.json([]);

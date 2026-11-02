@@ -57,5 +57,6 @@ export const api = {
     req<User[]>(`/users/assignable?issueKey=${enc(issueKey)}&query=${enc(query)}`),
   labels: () => req<string[]>('/labels'),
   priorities: () => req<Priority[]>('/priorities'),
-  parents: (project: string, query: string) => req<Issue[]>(`/parents?project=${enc(project)}&query=${enc(query)}`),
+  parents: (project: string, query: string, level: 'epic' | 'story' = 'epic') =>
+    req<Issue[]>(`/parents?project=${enc(project)}&query=${enc(query)}&level=${level}`),
 };
