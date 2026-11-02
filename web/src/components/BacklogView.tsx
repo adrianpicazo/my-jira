@@ -156,6 +156,7 @@ function Section({ sprint, open, onToggle, filters, dnd }: { sprint: Sprint | nu
             <IssueRow
               key={i.key}
               issue={i}
+              preview
               subtasks={{ issues: subtasksOf.get(i.key) ?? [], columns }}
               onContextMenu={(e) => openMenu(e, i)}
               drag={{
