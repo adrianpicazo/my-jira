@@ -84,6 +84,13 @@ export interface Comment {
   bodyHtml: string;
 }
 
+export interface HistoryEntry {
+  id: string;
+  author: User | null;
+  created: string;
+  items: { field: string; from: string | null; to: string | null }[];
+}
+
 export interface IssueDetail extends Issue {
   description: string;
   descriptionHtml: string;

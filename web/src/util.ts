@@ -60,6 +60,8 @@ export function typeColor(t: IssueType | null | undefined) {
  * position of its column on the board, so it works for any workflow.
  */
 export function statusStyle(s: Status | null | undefined, columns: Column[] = []): { color: string; fill: number; kind: 'todo' | 'progress' | 'done' } {
+  // Jira has no "blocked" category, so it goes by name; red whatever category it's in.
+  if (s && s.category !== 'done' && /block|bloque/i.test(s.name)) return { color: '#eb5757', fill: s.category === 'new' ? 0 : 0.5, kind: s.category === 'new' ? 'todo' : 'progress' };
   if (!s || s.category === 'new') return { color: 'var(--muted)', fill: 0, kind: 'todo' };
   if (s.category === 'done') return { color: '#5e6ad2', fill: 1, kind: 'done' };
   const idx = columns.findIndex((c) => c.statusIds.includes(s.id));

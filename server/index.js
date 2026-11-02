@@ -336,6 +336,21 @@ app.get('/api/issues/:key/children', async (req, res) => {
   res.json(issues.map(slimIssue));
 });
 
+app.get('/api/issues/:key/history', async (req, res) => {
+  if (!/^[A-Z][A-Z0-9_]*-\d+$/i.test(req.params.key)) throw new HttpError(400, 'Clave inválida');
+  const values = await agilePaged(`/rest/api/3/issue/${req.params.key}/changelog`, 'values');
+  res.json(
+    values
+      .map((h) => ({
+        id: h.id,
+        author: user(h.author),
+        created: h.created,
+        items: (h.items ?? []).map((i) => ({ field: i.field, from: i.fromString ?? null, to: i.toString ?? null })),
+      }))
+      .reverse(),
+  );
+});
+
 app.put('/api/issues/:key', async (req, res) => {
   const { summary, description, labels, parent, assignee, priority } = req.body ?? {};
   const fields = {};

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
-import { useIssueActions } from '../hooks';
+import { useIssueActions, useLocalStorage } from '../hooks';
 import { toast } from '../toast';
 import type { IssueDetail } from '../types';
 import { colorFor, fmtFull, relTime } from '../util';
@@ -154,9 +154,21 @@ function Comments({ issue }: { issue: IssueDetail }) {
       setSending(false);
     }
   };
+  const [tab, setTab] = useLocalStorage<'comments' | 'history'>('activityTab', 'comments');
   return (
     <div className="comments">
-      <h3>Actividad</h3>
+      <div className="activity-head">
+        <h3>Actividad</h3>
+        <div className="tabs">
+          <button className={`tab${tab === 'comments' ? ' on' : ''}`} onClick={() => setTab('comments')}>
+            Comentarios
+          </button>
+          <button className={`tab${tab === 'history' ? ' on' : ''}`} onClick={() => setTab('history')}>
+            Historial
+          </button>
+        </div>
+      </div>
+      {tab === 'history' ? <History issueKey={issue.key} /> : <>
       {issue.comments.map((c) => (
         <div key={c.id} className="comment">
           <Avatar user={c.author} size={22} />
@@ -190,6 +202,65 @@ function Comments({ issue }: { issue: IssueDetail }) {
           </button>
         </div>
       </div>
+      </>}
+    </div>
+  );
+}
+
+// Jira's own field ids for the usual fields; custom fields already come with their display name.
+const FIELD_NAMES: Record<string, string> = {
+  status: 'Estado',
+  assignee: 'Responsable',
+  reporter: 'Informador',
+  summary: 'Título',
+  description: 'Descripción',
+  labels: 'Etiquetas',
+  priority: 'Prioridad',
+  resolution: 'Resolución',
+  issuetype: 'Tipo',
+  IssueParentAssociation: 'Padre',
+  Parent: 'Padre',
+  'Parent Link': 'Padre',
+  Rank: 'Rango',
+  duedate: 'Fecha de vencimiento',
+  timespent: 'Tiempo registrado',
+  timeestimate: 'Estimación restante',
+  timeoriginalestimate: 'Estimación original',
+  WorklogId: 'Registro de trabajo',
+  Attachment: 'Adjunto',
+  Link: 'Enlace',
+  Comment: 'Comentario',
+};
+
+function History({ issueKey }: { issueKey: string }) {
+  const { data, isLoading, error } = useQuery({ queryKey: ['issue', issueKey, 'history'], queryFn: () => api.history(issueKey) });
+  if (isLoading) return <div className="muted small">Cargando…</div>;
+  if (error) return <div className="muted small">{(error as Error).message}</div>;
+  if (!data?.length) return <div className="muted small">Sin cambios.</div>;
+  return (
+    <div className="history">
+      {data.map((h) => (
+        <div key={h.id} className="history-entry">
+          <Avatar user={h.author} size={22} />
+          <div className="history-body">
+            <div className="comment-meta">
+              <strong>{h.author?.displayName ?? 'Automatización'}</strong>
+              <span className="muted" title={fmtFull(h.created)}>
+                {relTime(h.created)}
+              </span>
+            </div>
+            {h.items.map((i, idx) => (
+              <div key={idx} className="history-item">
+                <span className="history-field">{FIELD_NAMES[i.field] ?? i.field}</span>
+                {i.from && <span className="history-from">{i.from}</span>}
+                {i.from && i.to && <span className="muted">→</span>}
+                {i.to ? <span className="history-to">{i.to}</span> : !i.from && <span className="muted">—</span>}
+                {i.from && !i.to && <span className="muted">(quitado)</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

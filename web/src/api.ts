@@ -1,4 +1,4 @@
-import type { Board, Column, Issue, IssueDetail, IssuePatch, Me, Priority, Sprint, Transition, User } from './types';
+import type { Board, Column, HistoryEntry, Issue, IssueDetail, IssuePatch, Me, Priority, Sprint, Transition, User } from './types';
 
 export class ApiError extends Error {
   constructor(
@@ -42,6 +42,7 @@ export const api = {
   issuesByKeys: (keys: string[]) => req<Issue[]>(`/issues?keys=${enc(keys.join(','))}`),
   issue: (key: string) => req<IssueDetail>(`/issues/${enc(key)}`),
   children: (key: string) => req<Issue[]>(`/issues/${enc(key)}/children`),
+  history: (key: string) => req<HistoryEntry[]>(`/issues/${enc(key)}/history`),
   updateIssue: (key: string, patch: IssuePatch) => req(`/issues/${enc(key)}`, { method: 'PUT', body: patch }),
   deleteIssue: (key: string) => req(`/issues/${enc(key)}`, { method: 'DELETE' }),
   transitions: (key: string) => req<Transition[]>(`/issues/${enc(key)}/transitions`),

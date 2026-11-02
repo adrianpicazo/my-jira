@@ -995,6 +995,50 @@ code {
   font-weight: 600;
   margin: 0 0 16px;
 }
+.activity-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.activity-head h3 {
+  margin: 0;
+}
+.history-entry {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.history-body {
+  flex: 1;
+  min-width: 0;
+}
+.history-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  margin-top: 3px;
+}
+.history-field {
+  color: var(--muted);
+  flex: none;
+}
+.history-from,
+.history-to {
+  max-width: 100%;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.history-from {
+  color: var(--muted);
+  text-decoration: line-through;
+}
 .comment {
   display: flex;
   gap: 10px;
