@@ -410,6 +410,14 @@ app.put('/api/rank', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Users who can see the issue, i.e. who can be @mentioned on it.
+app.get('/api/users/mentionable', async (req, res) => {
+  const users = await jira('/rest/api/3/user/viewissue/search', {
+    query: { issueKey: req.query.issueKey, query: req.query.query, maxResults: 20 },
+  });
+  res.json(users.filter((u) => u.accountType !== 'app').map(user));
+});
+
 app.get('/api/users/assignable', async (req, res) => {
   const users = await jira('/rest/api/3/user/assignable/search', {
     query: { issueKey: req.query.issueKey, query: req.query.query, maxResults: 30 },

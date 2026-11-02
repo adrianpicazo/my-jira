@@ -53,6 +53,8 @@ export const api = {
     req(`/issues/${enc(key)}/sprint`, { method: 'POST', body: { sprintId, ...(at && { [at.pos]: at.target }) } }),
   rank: (key: string, pos: 'before' | 'after', target: string) =>
     req('/rank', { method: 'PUT', body: { issues: [key], [pos]: target } }),
+  mentionable: (issueKey: string, query: string) =>
+    req<User[]>(`/users/mentionable?issueKey=${enc(issueKey)}&query=${enc(query)}`),
   assignable: (issueKey: string, query: string) =>
     req<User[]>(`/users/assignable?issueKey=${enc(issueKey)}&query=${enc(query)}`),
   labels: () => req<string[]>('/labels'),

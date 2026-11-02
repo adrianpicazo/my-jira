@@ -1613,3 +1613,20 @@ code {
     transform: translateY(-2px);
   }
 }
+
+/* ---------- @mentions ---------- */
+.mention-wrap {
+  position: relative;
+}
+.mention-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  width: 280px;
+  padding: 4px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}

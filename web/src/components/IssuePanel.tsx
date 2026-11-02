@@ -7,6 +7,7 @@ import type { IssueDetail } from '../types';
 import { colorFor, fmtFull, relTime } from '../util';
 import { Avatar, Icon, PriorityIcon } from './icons';
 import { IssueRow } from './IssueRow';
+import { MentionTextarea, useMentions } from './MentionTextarea';
 import { AssigneePicker, LabelsPicker, ParentPicker, SprintPicker, StatusPicker } from './Pickers';
 
 function AutoTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -56,6 +57,7 @@ function Description({ issue }: { issue: IssueDetail }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(issue.description);
   const [saving, setSaving] = useState(false);
+  const mentions = useMentions();
   useEffect(() => {
     if (!editing) setDraft(issue.description);
   }, [issue.description, editing]);
@@ -63,7 +65,7 @@ function Description({ issue }: { issue: IssueDetail }) {
   const save = async () => {
     setSaving(true);
     try {
-      if (await update(issue.key, { description: draft })) setEditing(false);
+      if (await update(issue.key, { description: mentions.toWiki(draft) })) setEditing(false);
     } finally {
       setSaving(false);
     }
@@ -80,10 +82,12 @@ function Description({ issue }: { issue: IssueDetail }) {
   }
   return (
     <div className="editor">
-      <AutoTextarea
+      <MentionTextarea
         autoFocus
+        issueKey={issue.key}
+        mentions={mentions}
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={setDraft}
         onKeyDown={(e) => {
           if (isSave(e)) save();
           else if (e.key === 'Escape') {
@@ -93,7 +97,7 @@ function Description({ issue }: { issue: IssueDetail }) {
         }}
       />
       <div className="editor-actions">
-        <span className="muted small">Formato wiki de Jira: *negrita* _cursiva_ {'{code}'} [enlace|url] · ⌘↵ guardar</span>
+        <span className="muted small">Formato wiki de Jira: *negrita* _cursiva_ {'{code}'} [enlace|url] · @ mencionar · ⌘↵ guardar</span>
         <button className="btn btn-ghost" onClick={() => setEditing(false)}>
           Cancelar
         </button>
@@ -137,11 +141,15 @@ function Comments({ issue }: { issue: IssueDetail }) {
   const { comment } = useIssueActions();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const mentions = useMentions();
   const send = async () => {
     if (!draft.trim()) return;
     setSending(true);
     try {
-      if (await comment(issue.key, draft)) setDraft('');
+      if (await comment(issue.key, mentions.toWiki(draft))) {
+        setDraft('');
+        mentions.reset();
+      }
     } finally {
       setSending(false);
     }
@@ -164,10 +172,12 @@ function Comments({ issue }: { issue: IssueDetail }) {
         </div>
       ))}
       <div className="composer">
-        <AutoTextarea
+        <MentionTextarea
+          issueKey={issue.key}
+          mentions={mentions}
           value={draft}
-          placeholder="Escribe un comentario…"
-          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Escribe un comentario… (@ para mencionar)"
+          onChange={setDraft}
           onKeyDown={(e) => {
             if (isSave(e)) send();
             if (e.key === 'Escape') e.stopPropagation();
