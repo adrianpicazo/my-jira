@@ -108,7 +108,7 @@ function useEntries(issue: Issue) {
     submenu: (close) => <PriorityMenu issue={issue} close={close} />,
   };
   const parent: ContextItem = {
-    label: subtask ? 'Cambiar historia' : 'Cambiar épica',
+    label: subtask ? 'Cambiar historia' : issue.parent ? 'Cambiar épica' : 'Añadir épica',
     icon: <Icon.Epic color="var(--muted)" size={12} />,
     submenu: (close) => (
       <ParentMenu issueKey={issue.key} project={issue.key.split('-')[0]!} parent={issue.parent} subtask={subtask} close={close} />

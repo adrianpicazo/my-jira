@@ -261,15 +261,22 @@ export function ParentMenu({
     queryFn: () => api.parents(project, dq, level),
     placeholderData: keepPreviousData,
   });
-  const epics: Issue[] = (data ?? []).filter((e) => e.key !== issueKey);
+  const epics: Issue[] = (data ?? []).filter((e) => e.key !== issueKey && e.key !== parent?.key);
+  const icon = (key: string, status: Status | null) =>
+    subtask ? <StatusIcon status={status} /> : <Icon.Epic color={colorFor(key)} size={12} />;
+  // The current parent always heads the list (it may be done or not among the results), so picking another reads as a change.
+  const current: MenuItem[] =
+    parent && !q
+      ? [{ id: parent.key, label: parent.summary, icon: icon(parent.key, parent.status), hint: `${parent.key} · actual`, selected: true }]
+      : [];
   const items: MenuItem[] = [
-    ...(q || subtask ? [] : [{ id: '', label: 'Sin épica', icon: <Icon.Close size={13} />, selected: !parent }]),
+    ...current,
+    ...(q || subtask || !parent ? [] : [{ id: '', label: 'Quitar épica', icon: <Icon.Close size={13} /> }]),
     ...epics.map((e) => ({
       id: e.key,
       label: e.summary,
-      icon: subtask ? <StatusIcon status={e.status} /> : <Icon.Epic color={colorFor(e.key)} size={12} />,
+      icon: icon(e.key, e.status),
       hint: e.key,
-      selected: e.key === parent?.key,
     })),
   ];
   return (
@@ -278,7 +285,9 @@ export function ParentMenu({
       query={q}
       onQuery={setQ}
       loading={isFetching}
-      placeholder={subtask ? 'Buscar historia o clave…' : 'Buscar épica o clave…'}
+      placeholder={
+        parent ? (subtask ? 'Cambiar a otra historia…' : 'Cambiar a otra épica…') : subtask ? 'Buscar historia o clave…' : 'Buscar épica o clave…'
+      }
       onSelect={(item) => {
         close();
         if (item.id === (parent?.key ?? '')) return;
