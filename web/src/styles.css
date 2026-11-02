@@ -1183,6 +1183,7 @@ code {
 .board-col-min {
   gap: 6px;
   white-space: nowrap;
+  overflow: hidden;
   cursor: pointer;
 }
 .board-col-min .muted {

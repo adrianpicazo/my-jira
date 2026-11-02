@@ -192,7 +192,10 @@ export function SubtaskStats({ subtasks, columns }: { subtasks: Issue[]; columns
   );
 }
 
-/** Rough width of a minimized column (five letters and a count), for the board's min-width. */
+/**
+ * Width of a minimized column: five letters and a count. Fixed, since the header row and every
+ * swimlane are separate grids that must line up.
+ */
 const MIN_WIDTH = 80;
 
 /** A minimized column's cell: how many cards it holds, their titles on hover, expand on click. */
@@ -451,7 +454,7 @@ export function SprintBoard({
 
   const isFolded = (i: Issue) => !!i.issuetype?.subtask && !!i.parent && collapsedStories.includes(i.parent.key);
   const isMin = (c: Column) => minimized.includes(colKey(c));
-  const grid: CSSProperties = { gridTemplateColumns: columns.map((c) => (isMin(c) ? 'max-content' : 'minmax(260px, 1fr)')).join(' ') };
+  const grid: CSSProperties = { gridTemplateColumns: columns.map((c) => (isMin(c) ? `${MIN_WIDTH}px` : 'minmax(260px, 1fr)')).join(' ') };
 
   /* ---------- drag & drop ---------- */
 
