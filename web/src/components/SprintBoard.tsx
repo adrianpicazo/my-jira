@@ -7,6 +7,7 @@ import type { Column, Issue, ParentRef } from '../types';
 import { colorFor, typeColor } from '../util';
 import { Icon, PriorityIcon, StatusIcon } from './icons';
 import { CardMenu, rankMoves, type MenuState } from './CardMenu';
+import { ContextMenu } from './ContextMenu';
 import { AssigneePicker, LabelChips } from './Pickers';
 import { Progress } from './Progress';
 import type { Group } from './SprintView';
@@ -188,6 +189,28 @@ export function SubtaskStats({ subtasks, columns }: { subtasks: Issue[]; columns
         })}
       </span>
     </span>
+  );
+}
+
+const MIN_WIDTH = 48;
+
+/** A minimized column's cell: how many cards it holds, their titles on hover, expand on click. */
+function MinimizedCell({ issues, alignRight, onExpand }: { issues: Issue[]; alignRight: boolean; onExpand: () => void }) {
+  return (
+    <button className="min-card" onClick={onExpand}>
+      {issues.length}
+      <span className={`tooltip min-tooltip${alignRight ? ' align-right' : ''}`}>
+        {issues.map((i) => (
+          <span key={i.key} className="tooltip-row">
+            <span className="ellipsis">
+              {i.issuetype?.subtask && <span className="muted">↳ </span>}
+              {i.summary}
+            </span>
+            <span className="muted">{i.key}</span>
+          </span>
+        ))}
+      </span>
+    </button>
   );
 }
 
@@ -375,6 +398,16 @@ export function SprintBoard({
     keys.splice(keys.indexOf(to) + (pos === 'after' ? 1 : 0), 0, from);
     setOrderStore({ ...orderStore, [board.id]: keys });
   };
+  // Minimized columns shrink to a strip; each cell shows a count of its cards instead.
+  const [minStore, setMinStore] = useLocalStorage<Record<string, string[]>>('minimizedColumns', {});
+  const minimized = useMemo(() => minStore[board.id] ?? [], [minStore, board.id]);
+  const setMinimized = (key: string, on: boolean) =>
+    setMinStore({ ...minStore, [board.id]: on ? [...minimized, key] : minimized.filter((k) => k !== key) });
+  const [colMenu, setColMenu] = useState<{ x: number; y: number; key: string } | null>(null);
+  const openColMenu = (e: React.MouseEvent, key: string) => {
+    e.preventDefault();
+    setColMenu({ x: e.clientX, y: e.clientY, key });
+  };
   const resetOrder = () => {
     const { [board.id]: _, ...rest } = orderStore;
     setOrderStore(rest);
@@ -416,7 +449,8 @@ export function SprintBoard({
   };
 
   const isFolded = (i: Issue) => !!i.issuetype?.subtask && !!i.parent && collapsedStories.includes(i.parent.key);
-  const grid: CSSProperties = { gridTemplateColumns: `repeat(${columns.length}, minmax(260px, 1fr))` };
+  const isMin = (c: Column) => minimized.includes(colKey(c));
+  const grid: CSSProperties = { gridTemplateColumns: columns.map((c) => (isMin(c) ? `${MIN_WIDTH}px` : 'minmax(260px, 1fr)')).join(' ') };
 
   /* ---------- drag & drop ---------- */
 
@@ -521,7 +555,7 @@ export function SprintBoard({
 
   return (
     <div className="board" ref={boardRef}>
-      <div className="board-inner" style={{ minWidth: columns.length * 268 + 24 }}>
+      <div className="board-inner" style={{ minWidth: columns.reduce((w, c) => w + (isMin(c) ? MIN_WIDTH + 8 : 268), 24) }}>
         <div className="board-cols" style={grid}>
           {columns.map((c, idx) => {
             const n = issues.filter((i) => !isFolded(i) && c.statusIds.includes(i.status?.id ?? '')).length;
@@ -529,12 +563,25 @@ export function SprintBoard({
             // Only the first of a split group offers to join it back.
             const firstOfSplit = c.splitFrom && columns[idx - 1]?.splitFrom !== c.splitFrom;
             const key = colKey(c);
+            if (isMin(c))
+              return (
+                <button
+                  key={key}
+                  className="board-col-head board-col-min"
+                  title={`${c.name} · ${n}. Pulsa para expandir`}
+                  onClick={() => setMinimized(key, false)}
+                  onContextMenu={(e) => openColMenu(e, key)}
+                >
+                  <span className="muted">{n}</span>
+                </button>
+              );
             return (
               <div
                 key={key}
                 className={`board-col-head${colDrop?.key === key ? ` drop-${colDrop.pos}` : ''}`}
                 draggable
-                title="Arrastra para reordenar"
+                title="Arrastra para reordenar · clic derecho para minimizar"
+                onContextMenu={(e) => openColMenu(e, key)}
                 onDragStart={(e) => {
                   colDrag.current = key;
                   e.dataTransfer.effectAllowed = 'move';
@@ -599,10 +646,13 @@ export function SprintBoard({
                 <div className="lane-cells" style={grid}>
                   {cells(g).map((list, colIdx) => {
                     const cellId = `${g.id}:${colIdx}`;
+                    const col = columns[colIdx]!;
+                    const shown = list.filter((i) => !isFolded(i));
                     return (
                       <div
                         key={cellId}
-                        className={`cell${overCell === cellId ? ' over' : ''}`}
+                        className={`cell${overCell === cellId ? ' over' : ''}${isMin(col) ? ' cell-min' : ''}`}
+                        onContextMenu={(e) => openColMenu(e, colKey(col))}
                         onDragOver={(e) => {
                           const d = drag.current;
                           // Other columns of the same swimlane accept cards and subtasks as a status change.
@@ -621,7 +671,15 @@ export function SprintBoard({
                           else if (d.colIdx !== colIdx && d.kind !== 'placeholder' && d.laneId === g.id) transitionTo(d.key, colIdx);
                         }}
                       >
-                        {(() => {
+                        {isMin(col) ? (
+                          shown.length > 0 && (
+                            <MinimizedCell
+                              issues={shown}
+                              alignRight={colIdx > columns.length / 2}
+                              onExpand={() => setMinimized(colKey(col), false)}
+                            />
+                          )
+                        ) : (() => {
                           const units = arrange(list, rankOf);
                           const unitKeys = units.map((u) => (u.head.kind === 'card' ? u.head.issue.key : u.head.parent.key));
                           return units.map((unit) => {
@@ -717,6 +775,18 @@ export function SprintBoard({
         </div>
       ))}
       {menu && <CardMenu state={menu} currentSprintId={currentSprintId} onClose={closeMenu} />}
+      {colMenu && (
+        <ContextMenu
+          x={colMenu.x}
+          y={colMenu.y}
+          onClose={() => setColMenu(null)}
+          items={[
+            minimized.includes(colMenu.key)
+              ? { label: 'Expandir columna', icon: <Icon.Split size={14} />, onSelect: () => setMinimized(colMenu.key, false) }
+              : { label: 'Minimizar columna', icon: <Icon.Merge size={14} />, onSelect: () => setMinimized(colMenu.key, true) },
+          ]}
+        />
+      )}
     </div>
   );
 }
