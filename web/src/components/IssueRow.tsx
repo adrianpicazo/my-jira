@@ -11,6 +11,8 @@ export function IssueRow({
   showParent = true,
   preview = false,
   subtasks,
+  selected = false,
+  onClick,
   onContextMenu,
   drag,
 }: {
@@ -20,6 +22,9 @@ export function IssueRow({
   preview?: boolean;
   /** Folded subtasks, shown as a pending count with a per-status tooltip. */
   subtasks?: { issues: Issue[]; columns: Column[] };
+  selected?: boolean;
+  /** Replaces opening the issue, e.g. to handle ⌘/⇧-click selection. */
+  onClick?: (e: React.MouseEvent) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   drag?: {
     onDragStart: () => void;
@@ -33,7 +38,7 @@ export function IssueRow({
   const hover = useHoverPreview(issue.key, preview);
   return (
     <div
-      className={`row${drag?.dropPos ? ` drop-${drag.dropPos}` : ''}`}
+      className={`row${selected ? ' selected' : ''}${drag?.dropPos ? ` drop-${drag.dropPos}` : ''}`}
       draggable={!!drag}
       onMouseEnter={hover.handlers.onMouseEnter}
       onMouseLeave={hover.handlers.onMouseLeave}
@@ -48,7 +53,7 @@ export function IssueRow({
       onDragOver={drag?.onDragOver}
       role="button"
       tabIndex={0}
-      onClick={() => openIssue(issue.key)}
+      onClick={(e) => (onClick ? onClick(e) : openIssue(issue.key))}
       onContextMenu={(e) => {
         hover.handlers.onContextMenu?.();
         onContextMenu?.(e);

@@ -541,6 +541,9 @@ code {
 .row:focus-visible {
   background: var(--hover);
 }
+.row.selected {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
 .row-priority {
   display: flex;
   flex: none;

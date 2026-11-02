@@ -415,6 +415,17 @@ app.post('/api/issues/:key/sprint', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Several issues at once (the Agile API takes up to 50 per call); sprintId null means the backlog.
+app.post('/api/sprint-move', async (req, res) => {
+  const { keys, sprintId } = req.body ?? {};
+  if (!Array.isArray(keys) || !keys.every((k) => /^[A-Z][A-Z0-9_]*-\d+$/i.test(k))) throw new HttpError(400, 'Claves inválidas');
+  for (let i = 0; i < keys.length; i += 50) {
+    const body = { issues: keys.slice(i, i + 50) };
+    await jira(sprintId ? `/rest/agile/1.0/sprint/${Number(sprintId)}/issue` : '/rest/agile/1.0/backlog/issue', { method: 'POST', body });
+  }
+  res.json({ ok: true });
+});
+
 // Jira rank is global; the Agile API accepts either rankBeforeIssue or rankAfterIssue.
 app.put('/api/rank', async (req, res) => {
   const { issues, before, after } = req.body ?? {};

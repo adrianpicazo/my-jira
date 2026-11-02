@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { api } from '../api';
 import { useApp, useIssueActions, useLocalStorage } from '../hooks';
@@ -8,6 +8,8 @@ import { applyFilters, emptyFilters, FilterBar, type Filters } from './FilterBar
 import { Icon } from './icons';
 import { BacklogMenu, rankMoves, type MenuState } from './CardMenu';
 import { IssueRow } from './IssueRow';
+import { ContextMenu } from './ContextMenu';
+import { Menu } from './Menu';
 import { SprintFilter } from './SprintFilter';
 import { Progress } from './Progress';
 import { useSlashFocus } from './useSlashFocus';
@@ -27,6 +29,15 @@ interface DropAt {
   pos?: DropPos;
 }
 
+/** Rows picked with ⌘/Ctrl-click (toggle) or ⇧-click (range within a section). */
+interface Selection {
+  keys: Set<string>;
+  /** Last row clicked, the start of a ⇧-click range: [section, key]. */
+  anchor: [string, string] | null;
+  set: (keys: Set<string>, anchor: [string, string] | null) => void;
+  openMenu: (x: number, y: number) => void;
+}
+
 interface Dnd {
   drag: MutableRefObject<DragInfo | null>;
   dropAt: DropAt | null;
@@ -36,8 +47,22 @@ interface Dnd {
 
 const isSub = (i: Issue) => !!i.issuetype?.subtask;
 
-function Section({ sprint, open, onToggle, filters, dnd }: { sprint: Sprint | null; open: boolean; onToggle: () => void; filters: Filters; dnd: Dnd }) {
-  const { board } = useApp();
+function Section({
+  sprint,
+  open,
+  onToggle,
+  filters,
+  dnd,
+  sel,
+}: {
+  sprint: Sprint | null;
+  open: boolean;
+  onToggle: () => void;
+  filters: Filters;
+  dnd: Dnd;
+  sel: Selection;
+}) {
+  const { board, openIssue } = useApp();
   const qc = useQueryClient();
   const { rank, moveToSprint } = useIssueActions();
   const id = sprint?.id ?? 'backlog';
@@ -68,10 +93,32 @@ function Section({ sprint, open, onToggle, filters, dnd }: { sprint: Sprint | nu
   // Stories/tasks rank among the section's stories/tasks; subtasks only among their siblings.
   const openMenu = (e: React.MouseEvent, issue: Issue) => {
     e.preventDefault();
+    if (sel.keys.size > 1 && sel.keys.has(issue.key)) return sel.openMenu(e.clientX, e.clientY);
     const peers = (issues ?? [])
       .filter((i) => (issue.issuetype?.subtask ? i.issuetype?.subtask && i.parent?.key === issue.parent?.key : !i.issuetype?.subtask))
       .map((i) => i.key);
     setMenu({ x: e.clientX, y: e.clientY, issue, moves: rankMoves(issue.key, peers) });
+  };
+  const rowClick = (e: React.MouseEvent, issue: Issue) => {
+    // ⇧-click would otherwise select the text in between.
+    if (e.shiftKey) window.getSelection()?.removeAllRanges();
+    if (e.metaKey || e.ctrlKey) {
+      const keys = new Set(sel.keys);
+      if (keys.has(issue.key)) keys.delete(issue.key);
+      else keys.add(issue.key);
+      return sel.set(keys, [sectionId, issue.key]);
+    }
+    if (e.shiftKey && sel.anchor?.[0] === sectionId) {
+      const a = visible.findIndex((i) => i.key === sel.anchor![1]);
+      const b = visible.findIndex((i) => i.key === issue.key);
+      if (a >= 0 && b >= 0) {
+        const range = visible.slice(Math.min(a, b), Math.max(a, b) + 1).map((i) => i.key);
+        return sel.set(new Set([...sel.keys, ...range]), sel.anchor);
+      }
+    }
+    if (e.shiftKey) return sel.set(new Set([...sel.keys, issue.key]), [sectionId, issue.key]);
+    sel.set(new Set(), null);
+    openIssue(issue.key);
   };
   const filtering = filters.q || filters.assignees.length;
 
@@ -157,6 +204,8 @@ function Section({ sprint, open, onToggle, filters, dnd }: { sprint: Sprint | nu
               key={i.key}
               issue={i}
               preview
+              selected={sel.keys.has(i.key)}
+              onClick={(e) => rowClick(e, i)}
               subtasks={{ issues: subtasksOf.get(i.key) ?? [], columns }}
               onContextMenu={(e) => openMenu(e, i)}
               drag={{
@@ -178,6 +227,20 @@ function Section({ sprint, open, onToggle, filters, dnd }: { sprint: Sprint | nu
 
 export function BacklogView() {
   const { board, sprints, hiddenSprintIds } = useApp();
+  const { moveManyToSprint } = useIssueActions();
+  const [selected, setSelected] = useState<{ keys: Set<string>; anchor: [string, string] | null }>({ keys: new Set(), anchor: null });
+  const [multiMenu, setMultiMenu] = useState<{ x: number; y: number } | null>(null);
+  const sel: Selection = {
+    ...selected,
+    set: (keys, anchor) => setSelected({ keys, anchor }),
+    openMenu: (x, y) => setMultiMenu({ x, y }),
+  };
+  const clearSelection = useCallback(() => setSelected({ keys: new Set(), anchor: null }), []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && clearSelection();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [clearSelection]);
   const visible = sprints.filter((s) => !hiddenSprintIds.includes(s.id));
   const [expanded, setExpanded] = useLocalStorage<(number | 'backlog')[]>(`expanded:${board.id}`, []);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
@@ -205,6 +268,11 @@ export function BacklogView() {
           <button className="btn btn-ghost" onClick={() => setExpanded(expanded.length ? [] : [...visible.map((s) => s.id), 'backlog'])}>
             {expanded.length ? 'Plegar todo' : 'Desplegar todo'}
           </button>
+          {selected.keys.size > 0 && (
+            <button className="btn btn-ghost" title="Esc para deseleccionar" onClick={clearSelection}>
+              {selected.keys.size} seleccionadas ✕
+            </button>
+          )}
           <SprintFilter />
         </div>
       </header>
@@ -213,10 +281,39 @@ export function BacklogView() {
       </div>
       <div className="list">
         {visible.map((s) => (
-          <Section key={s.id} sprint={s} open={expanded.includes(s.id)} onToggle={() => toggle(s.id)} filters={filters} dnd={dnd} />
+          <Section key={s.id} sprint={s} open={expanded.includes(s.id)} onToggle={() => toggle(s.id)} filters={filters} dnd={dnd} sel={sel} />
         ))}
-        <Section sprint={null} open={expanded.includes('backlog')} onToggle={() => toggle('backlog')} filters={filters} dnd={dnd} />
+        <Section sprint={null} open={expanded.includes('backlog')} onToggle={() => toggle('backlog')} filters={filters} dnd={dnd} sel={sel} />
       </div>
+      {multiMenu && (
+        <ContextMenu
+          x={multiMenu.x}
+          y={multiMenu.y}
+          onClose={() => setMultiMenu(null)}
+          items={[
+            {
+              label: `Mover ${selected.keys.size} issues a otro sprint`,
+              icon: <Icon.Sprint />,
+              submenu: (close) => (
+                <Menu
+                  placeholder="Sprint…"
+                  items={[
+                    ...visible.map((s) => ({ id: `s:${s.id}`, label: s.name, icon: <Icon.Sprint size={13} />, hint: s.state === 'active' ? 'Activo' : undefined })),
+                    { id: 'backlog', label: 'Backlog', icon: <Icon.Backlog size={13} /> },
+                  ]}
+                  onSelect={(item) => {
+                    close();
+                    setMultiMenu(null);
+                    moveManyToSprint([...selected.keys], visible.find((s) => `s:${s.id}` === item.id) ?? null);
+                    clearSelection();
+                  }}
+                />
+              ),
+            },
+            { label: 'Deseleccionar', icon: <Icon.Close />, onSelect: clearSelection },
+          ]}
+        />
+      )}
     </div>
   );
 }

@@ -154,6 +154,17 @@ export function useIssueActions() {
         local: opts?.local,
         success: `${key} → ${sprint?.name ?? 'Backlog'}`,
       }),
+    moveManyToSprint: (keys: string[], sprint: Sprint | null) =>
+      run({
+        key: keys[0]!,
+        fn: () => api.moveManyToSprint(keys, sprint?.id ?? null),
+        // Out of every list they're in (with their subtasks); the target list refetches.
+        local: () =>
+          qc.setQueriesData<Issue[]>({ queryKey: ['issues'] }, (old) =>
+            old?.filter((i) => !keys.includes(i.key) && !(i.parent && keys.includes(i.parent.key))),
+          ),
+        success: `${keys.length} issues → ${sprint?.name ?? 'Backlog'}`,
+      }),
     rank: (key: string, pos: 'before' | 'after', target: string) =>
       run({ key, fn: () => api.rank(key, pos, target), local: () => moveLocal(key, pos, target) }),
     deleteIssue: (key: string) =>

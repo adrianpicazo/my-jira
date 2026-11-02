@@ -52,6 +52,7 @@ export const api = {
     req(`/issues/${enc(key)}/worklog`, { method: 'POST', body }),
   moveToSprint: (key: string, sprintId: number | null, at?: { pos: 'before' | 'after'; target: string }) =>
     req(`/issues/${enc(key)}/sprint`, { method: 'POST', body: { sprintId, ...(at && { [at.pos]: at.target }) } }),
+  moveManyToSprint: (keys: string[], sprintId: number | null) => req('/sprint-move', { method: 'POST', body: { keys, sprintId } }),
   rank: (key: string, pos: 'before' | 'after', target: string) =>
     req('/rank', { method: 'PUT', body: { issues: [key], [pos]: target } }),
   mentionable: (issueKey: string, query: string) =>
