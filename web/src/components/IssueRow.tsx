@@ -1,14 +1,16 @@
 import { useApp } from '../hooks';
-import type { Issue } from '../types';
+import type { Column, Issue } from '../types';
 import { colorFor } from '../util';
 import { useHoverPreview } from './HoverPreview';
 import { Icon, PriorityIcon } from './icons';
 import { AssigneePicker, LabelChips, StatusPicker } from './Pickers';
+import { SubtaskStats } from './SprintBoard';
 
 export function IssueRow({
   issue,
   showParent = true,
   preview = false,
+  subtasks,
   onContextMenu,
   drag,
 }: {
@@ -16,6 +18,8 @@ export function IssueRow({
   showParent?: boolean;
   /** Show description and reporter after hovering for a while. */
   preview?: boolean;
+  /** Folded subtasks, shown as a pending count with a per-status tooltip. */
+  subtasks?: { issues: Issue[]; columns: Column[] };
   onContextMenu?: (e: React.MouseEvent) => void;
   drag?: {
     onDragStart: () => void;
@@ -60,6 +64,11 @@ export function IssueRow({
         {issue.issuetype?.subtask && <span className="muted">↳ </span>}
         {issue.summary}
       </span>
+      {subtasks && subtasks.issues.length > 0 && (
+        <span className="row-subtasks">
+          <SubtaskStats subtasks={subtasks.issues} columns={subtasks.columns} />
+        </span>
+      )}
       <span className="row-meta">
         <LabelChips labels={issue.labels.slice(0, 2)} />
         {extra > 0 && <span className="chip">+{extra}</span>}

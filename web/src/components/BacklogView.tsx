@@ -52,7 +52,15 @@ function Section({ sprint, open, onToggle, filters, dnd }: { sprint: Sprint | nu
     queryFn: () => (sprint ? api.sprintIssues(board.id, sprint.id) : api.backlog(board.id)),
     enabled: open,
   });
-  const visible = issues ? applyFilters(issues, filters) : [];
+  const { data: columns = [] } = useQuery({ queryKey: ['columns', board.id], queryFn: () => api.columns(board.id), staleTime: Infinity });
+  // Subtasks fold into their story's row; done work is hidden from the backlog itself.
+  const subtasksOf = new Map<string, Issue[]>();
+  for (const i of issues ?? []) if (isSub(i) && i.parent) subtasksOf.set(i.parent.key, [...(subtasksOf.get(i.parent.key) ?? []), i]);
+  const matching = new Set(issues ? applyFilters(issues, filters).map((i) => i.key) : []);
+  const visible = (issues ?? []).filter(
+    (i) => !isSub(i) && (sprint || i.status?.category !== 'done') && (matching.has(i.key) || subtasksOf.get(i.key)?.some((s) => matching.has(s.key))),
+  );
+  const listed = (issues ?? []).filter((i) => !isSub(i) && (sprint || i.status?.category !== 'done'));
   const [menu, setMenu] = useState<MenuState | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   // Stories/tasks rank among the section's stories/tasks; subtasks only among their siblings.
@@ -134,18 +142,19 @@ function Section({ sprint, open, onToggle, filters, dnd }: { sprint: Sprint | nu
           {count ? `${filtering && issues ? `${visible.length} de ` : ''}${count.total} issues` : ''}
         </span>
         <span className="spacer" />
-        {issues && issues.length > 0 && <Progress issues={issues} />}
+        {listed.length > 0 && <Progress issues={listed} />}
       </div>
       {open && (
         <div className="sprint-body">
           {sprint?.goal && <div className="sprint-goal">{sprint.goal}</div>}
           {isLoading && <div className="empty">Cargando…</div>}
           {error && <div className="empty error">{(error as Error).message}</div>}
-          {issues && !visible.length && <div className="empty">{issues.length ? 'Nada coincide con el filtro.' : 'Vacío.'}</div>}
+          {issues && !visible.length && <div className="empty">{listed.length ? 'Nada coincide con el filtro.' : 'Vacío.'}</div>}
           {visible.map((i) => (
             <IssueRow
               key={i.key}
               issue={i}
+              subtasks={{ issues: subtasksOf.get(i.key) ?? [], columns }}
               onContextMenu={(e) => openMenu(e, i)}
               drag={{
                 onDragStart: () => {

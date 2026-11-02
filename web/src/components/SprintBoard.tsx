@@ -145,7 +145,7 @@ function FoldToggle({
 }
 
 /** "N pendientes · de M" over every subtask of the story, with a per-status breakdown on hover. */
-function SubtaskStats({ subtasks, columns }: { subtasks: Issue[]; columns: Column[] }) {
+export function SubtaskStats({ subtasks, columns }: { subtasks: Issue[]; columns: Column[] }) {
   const { openIssue } = useApp();
   const pending = subtasks.filter((s) => s.status?.category !== 'done').length;
   return (

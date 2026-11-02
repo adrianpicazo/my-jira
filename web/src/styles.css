@@ -562,6 +562,11 @@ code {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.row-subtasks {
+  flex: none;
+  color: var(--muted);
+  font-size: 12.5px;
+}
 .row-meta {
   display: flex;
   align-items: center;

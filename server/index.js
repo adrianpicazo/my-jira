@@ -264,9 +264,12 @@ app.get('/api/boards/:id/sprints/:sprintId/issues', async (req, res) => {
   res.json(issues.map(slimIssue));
 });
 
+// Counts match what the backlog view lists: no subtasks, and no done issues in the backlog.
+const NO_SUBTASKS = 'issuetype not in subtaskIssueTypes()';
+
 app.get('/api/boards/:id/sprints/:sprintId/count', async (req, res) => {
   const data = await jira(`/rest/agile/1.0/board/${req.params.id}/sprint/${req.params.sprintId}/issue`, {
-    query: { maxResults: 1, fields: 'key' },
+    query: { maxResults: 1, fields: 'key', jql: NO_SUBTASKS },
   });
   res.json({ total: data.total ?? 0 });
 });
@@ -280,7 +283,7 @@ app.get('/api/boards/:id/backlog', async (req, res) => {
 
 app.get('/api/boards/:id/backlog/count', async (req, res) => {
   const data = await jira(`/rest/agile/1.0/board/${req.params.id}/backlog`, {
-    query: { maxResults: 1, fields: 'key' },
+    query: { maxResults: 1, fields: 'key', jql: `${NO_SUBTASKS} AND statusCategory != Done` },
   });
   res.json({ total: data.total ?? 0 });
 });
