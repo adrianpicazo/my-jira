@@ -9,6 +9,7 @@ import { EpicFilter, NO_EPIC, type EpicOption } from './EpicFilter';
 import { applyFilters, assigneesOf, emptyFilters, FilterBar, type Filters } from './FilterBar';
 import { Avatar, Icon, StatusIcon } from './icons';
 import { IssueRow } from './IssueRow';
+import { applyLaneOrder, useLaneDrag } from './useLaneDrag';
 import { AssigneePicker, StatusPicker } from './Pickers';
 import { SprintFilter } from './SprintFilter';
 import { StatusFilter, statusesOf } from './StatusFilter';
@@ -173,7 +174,13 @@ export function SprintView() {
   const allStoriesFolded = storiesWithSubtasks.length > 0 && storiesWithSubtasks.every((k) => collapsedStories.includes(k));
   const toggleStory = (key: string) =>
     setCollapsedStories(collapsedStories.includes(key) ? collapsedStories.filter((k) => k !== key) : [...collapsedStories, key]);
-  const groups = groupIssues(visible, all, laneBy, columns, epics);
+  // Swimlanes can be reordered by dragging their headers; the order is kept per board and grouping.
+  const [laneOrder, setLaneOrder] = useLocalStorage<string[]>(`laneOrder:${board.id}:${laneBy}`, []);
+  const groups = applyLaneOrder(groupIssues(visible, all, laneBy, columns, epics), laneOrder);
+  const laneDrag = useLaneDrag(
+    groups.map((g) => g.id),
+    setLaneOrder,
+  );
   const left = daysLeft(sprint?.endDate);
 
   const allGroupsFolded = groups.length > 0 && groups.every((g) => collapsed.has(g.id));
@@ -226,6 +233,11 @@ export function SprintView() {
             hidden={hiddenEpics}
             onChange={(keys) => setHiddenEpicStore({ ...hiddenEpicStore, [board.id]: keys })}
           />
+        )}
+        {laneBy !== 'none' && laneOrder.length > 0 && (
+          <button className="btn btn-ghost" title="Volver al orden por defecto de los swimlanes" onClick={() => setLaneOrder([])}>
+            <Icon.Refresh size={13} /> Orden
+          </button>
         )}
         {laneBy !== 'none' && groups.length > 0 && (
           <button className="btn btn-ghost" onClick={() => setCollapsed(allGroupsFolded ? new Set() : new Set(groups.map((g) => g.id)))}>
@@ -289,6 +301,7 @@ export function SprintView() {
             hiddenStatusIds={hiddenStatusIds}
             collapsedStories={collapsedStories}
             onToggleStory={toggleStory}
+            laneDrag={laneDrag}
           />
         )
       ) : (
@@ -298,7 +311,7 @@ export function SprintView() {
             g.issues.map((i) => <IssueRow key={i.key} issue={i} preview onContextMenu={(e) => openMenu(e, i)} />)
           ) : (
             <section key={g.id} className="group">
-              <div className="group-header" onClick={() => toggle(g.id)}>
+              <div {...laneDrag(g.id)} className={`group-header${laneDrag(g.id).className}`} onClick={() => toggle(g.id)}>
                 <Icon.Chevron open={!collapsed.has(g.id)} />
                 {g.header}
                 <span className="group-count">

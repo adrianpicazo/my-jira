@@ -12,6 +12,7 @@ import { AssigneePicker, LabelChips } from './Pickers';
 import { Progress } from './Progress';
 import type { Group } from './SprintView';
 import { statusesOf } from './StatusFilter';
+import type { LaneDrag } from './useLaneDrag';
 
 /**
  * Board columns from the Jira board config, or one per status seen when that isn't loaded yet.
@@ -362,6 +363,7 @@ export function SprintBoard({
   collapsedStories,
   onToggleStory,
   currentSprintId,
+  laneDrag,
 }: {
   groups: Group[];
   columns: Column[] | undefined;
@@ -374,6 +376,7 @@ export function SprintBoard({
   collapsedStories: string[];
   onToggleStory: (key: string) => void;
   currentSprintId?: number;
+  laneDrag: LaneDrag;
 }) {
   const qc = useQueryClient();
   const { transition, rank } = useIssueActions();
@@ -639,7 +642,7 @@ export function SprintBoard({
           return (
             <section key={g.id} className="lane">
               {g.header !== null && (
-                <div className="lane-head" onClick={() => onToggle(g.id)}>
+                <div {...laneDrag(g.id)} className={`lane-head${laneDrag(g.id).className}`} onClick={() => onToggle(g.id)}>
                   <div className="lane-title">
                     <Icon.Chevron open={open} />
                     {g.header}

@@ -1285,6 +1285,14 @@ code {
   user-select: none;
   border-bottom: 1px solid var(--border);
 }
+/* Swimlane drop indicator, drawn on the header it lands before/after. */
+.lane-drop-before,
+.lane-drop-after {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.lane-drop-after {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
 .lane-head:hover .lane-title {
   color: var(--text);
 }
