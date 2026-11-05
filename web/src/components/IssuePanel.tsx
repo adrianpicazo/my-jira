@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useIssueActions, useLocalStorage } from '../hooks';
 import { toast } from '../toast';
-import type { IssueDetail } from '../types';
-import { colorFor, fmtFull, relTime } from '../util';
+import type { ExtraField, IssueDetail } from '../types';
+import { colorFor, fmtDay, fmtFull, relTime } from '../util';
 import { Avatar, Icon, PriorityIcon } from './icons';
 import { IssueRow } from './IssueRow';
 import { MentionTextarea, useMentions } from './MentionTextarea';
@@ -335,6 +335,57 @@ function Worklog({ issue }: { issue: IssueDetail }) {
   );
 }
 
+function FieldValue({ field }: { field: ExtraField }) {
+  if (field.html) return <div className="static prose field-html" dangerouslySetInnerHTML={{ __html: field.html }} />;
+  if (!field.text) return <span className="static muted">—</span>;
+  const text = field.type === 'datetime' ? fmtFull(field.text) : field.type === 'date' ? fmtDay(field.text) : field.text;
+  return <span className="static field-text">{text}</span>;
+}
+
+/**
+ * The rest of the issue's Jira fields (read-only), folded by default. Any of them can be pinned
+ * so it shows up with the main properties of every issue.
+ */
+function MoreFields({ issueKey }: { issueKey: string }) {
+  const { data: fields } = useQuery({ queryKey: ['issue', issueKey, 'fields'], queryFn: () => api.fields(issueKey) });
+  const [pinned, setPinned] = useLocalStorage<string[]>('pinnedFields', []);
+  const [open, setOpen] = useLocalStorage('moreFieldsOpen', false);
+  if (!fields?.length) return null;
+  const togglePin = (id: string) => setPinned(pinned.includes(id) ? pinned.filter((p) => p !== id) : [...pinned, id]);
+  const row = (f: ExtraField) => (
+    <div key={f.id} className="prop extra-field">
+      <span className="prop-label" title={f.name}>
+        {f.name}
+      </span>
+      <div className="prop-value">
+        <FieldValue field={f} />
+      </div>
+      <button
+        className="icon-btn pin-btn"
+        title={pinned.includes(f.id) ? 'Devolver a «Más campos»' : 'Mostrar siempre arriba'}
+        onClick={() => togglePin(f.id)}
+      >
+        {pinned.includes(f.id) ? <Icon.Close size={12} /> : <Icon.Pin size={12} />}
+      </button>
+    </div>
+  );
+  const shown = pinned.map((id) => fields.find((f) => f.id === id)).filter((f): f is ExtraField => !!f);
+  const rest = fields.filter((f) => !pinned.includes(f.id));
+  return (
+    <>
+      {shown.map(row)}
+      {rest.length > 0 && (
+        <div className="more-fields">
+          <button className="more-fields-toggle" onClick={() => setOpen(!open)}>
+            <Icon.Chevron open={open} size={11} /> Más campos <span className="muted">{rest.length}</span>
+          </button>
+          {open && rest.map(row)}
+        </div>
+      )}
+    </>
+  );
+}
+
 function Prop({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="prop">
@@ -438,6 +489,7 @@ export function IssuePanel({ issueKey, onClose, onOpen }: { issueKey: string; on
                   <Avatar user={issue.reporter} size={16} /> {issue.reporter?.displayName ?? '—'}
                 </span>
               </Prop>
+              <MoreFields issueKey={issue.key} />
               <div className="side-sep" />
               <Worklog issue={issue} />
               <div className="side-foot muted small">Actualizado {relTime(issue.updated)}</div>

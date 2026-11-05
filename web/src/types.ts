@@ -84,6 +84,14 @@ export interface Comment {
   bodyHtml: string;
 }
 
+export interface ExtraField {
+  id: string;
+  name: string;
+  type: string | null;
+  text: string | null;
+  html: string | null;
+}
+
 export interface HistoryEntry {
   id: string;
   author: User | null;

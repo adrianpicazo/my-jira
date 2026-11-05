@@ -128,6 +128,11 @@ export const Icon = {
       <path d="M9 3h4v4M13 3 7.5 8.5M11 9.5V13H3V5h3.5" {...stroke} />
     </svg>
   ),
+  Pin: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <path d="M6 2.5h4M7 2.5v4L4.5 9.5h7L9 6.5v-4M8 9.5V14" {...stroke} />
+    </svg>
+  ),
   Close: ({ size = 14 }: IconProps) => (
     <svg width={size} height={size} viewBox="0 0 16 16">
       <path d="m4 4 8 8M12 4l-8 8" {...stroke} />

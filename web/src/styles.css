@@ -1088,6 +1088,41 @@ code {
   flex: 1;
   min-width: 0;
 }
+.extra-field .prop-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.field-text {
+  overflow-wrap: anywhere;
+}
+.field-html {
+  display: block;
+  font-size: 13px;
+}
+.pin-btn {
+  flex: none;
+  opacity: 0;
+  margin-top: 4px;
+}
+.extra-field:hover .pin-btn,
+.pin-btn:focus-visible {
+  opacity: 1;
+}
+.more-fields {
+  margin-top: 6px;
+}
+.more-fields-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.more-fields-toggle:hover {
+  color: var(--text);
+}
 .static {
   display: flex;
   align-items: center;

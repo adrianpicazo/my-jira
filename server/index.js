@@ -329,6 +329,52 @@ app.get('/api/issues/:key', async (req, res) => {
   });
 });
 
+// Fields the panel already shows (or that make no sense as a value), left out of "more fields".
+const SHOWN_FIELDS = new Set([
+  'summary', 'description', 'status', 'assignee', 'labels', 'parent', 'issuetype', 'priority', 'reporter',
+  'timetracking', 'timespent', 'timeestimate', 'timeoriginalestimate', 'aggregatetimespent', 'aggregatetimeestimate',
+  'aggregatetimeoriginalestimate', 'aggregateprogress', 'progress', 'worklog', 'comment', 'project', 'subtasks',
+  'updated', 'lastViewed', 'watches', 'votes', 'thumbnail', 'statuscategorychangedate', 'workratio', 'issuerestriction',
+  'attachment', 'statusCategory',
+]);
+// Custom field types handled elsewhere or internal to Jira Software.
+const HIDDEN_CUSTOM = /gh-sprint|gh-lexo-rank|gh-epic-link|gh-epic-status|gh-epic-color|gh-epic-label|devsummary|jsw-issue-color/;
+
+/** A field value as display text, or null when empty. */
+function fieldText(v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (Array.isArray(v)) {
+    const parts = v.map(fieldText).filter(Boolean);
+    return parts.length ? parts.join(', ') : null;
+  }
+  if (typeof v !== 'object') return String(v);
+  if (v.type === 'doc') return null; // ADF; the rendered HTML is used instead
+  if (v.outwardIssue) return `${v.type?.outward ?? ''} ${v.outwardIssue.key}`.trim();
+  if (v.inwardIssue) return `${v.type?.inward ?? ''} ${v.inwardIssue.key}`.trim();
+  const base = v.displayName ?? v.value ?? v.name ?? v.key ?? v.title ?? null;
+  if (base && v.child) return `${base} / ${fieldText(v.child)}`;
+  return base === null ? null : String(base);
+}
+
+// Every other field of the issue: the ones on its edit screen (even if empty) plus any with a value.
+app.get('/api/issues/:key/fields', async (req, res) => {
+  const issue = await jira(`/rest/api/2/issue/${k(req)}`, { query: { expand: 'names,schema,renderedFields,editmeta' } });
+  const editable = issue.editmeta?.fields ?? {};
+  const out = [];
+  for (const [id, v] of Object.entries(issue.fields ?? {})) {
+    const schema = issue.schema?.[id] ?? editable[id]?.schema ?? {};
+    if (SHOWN_FIELDS.has(id) || HIDDEN_CUSTOM.test(schema.custom ?? '')) continue;
+    const name = issue.names?.[id] ?? editable[id]?.name ?? id;
+    const rendered = issue.renderedFields?.[id];
+    const html = typeof rendered === 'string' && rendered && schema.type === 'string' && /<\w/.test(rendered) ? rewriteHtml(rendered) : null;
+    const text = html ? null : fieldText(v);
+    if (!html && text === null && !editable[id]) continue;
+    out.push({ id, name, type: schema.type ?? null, text, html });
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name));
+  res.json(out);
+});
+
 // Subtasks of a story, or the issues of an epic, in rank order.
 app.get('/api/issues/:key/children', async (req, res) => {
   if (!/^[A-Z][A-Z0-9_]*-\d+$/i.test(req.params.key)) throw new HttpError(400, 'Clave inválida');
