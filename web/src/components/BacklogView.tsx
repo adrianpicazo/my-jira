@@ -12,7 +12,7 @@ import { ContextMenu } from './ContextMenu';
 import { Menu } from './Menu';
 import { SprintFilter } from './SprintFilter';
 import { Progress } from './Progress';
-import { statusesOf } from './StatusFilter';
+import { StatusFilter, statusesOf } from './StatusFilter';
 import { useSlashFocus } from './useSlashFocus';
 
 type DropPos = 'before' | 'after';
@@ -55,6 +55,7 @@ function Section({
   filters,
   dnd,
   sel,
+  hiddenStatusIds,
 }: {
   sprint: Sprint | null;
   open: boolean;
@@ -62,6 +63,7 @@ function Section({
   filters: Filters;
   dnd: Dnd;
   sel: Selection;
+  hiddenStatusIds: string[];
 }) {
   const { board, openIssue } = useApp();
   const qc = useQueryClient();
@@ -87,10 +89,10 @@ function Section({
   const subtasksOf = new Map<string, Issue[]>();
   for (const i of issues ?? []) if (isSub(i) && i.parent) subtasksOf.set(i.parent.key, [...(subtasksOf.get(i.parent.key) ?? []), i]);
   const matching = new Set(issues ? applyFilters(issues, filters).map((i) => i.key) : []);
-  const visible = (issues ?? []).filter(
-    (i) => !isSub(i) && (showDone || i.status?.category !== 'done') && (matching.has(i.key) || subtasksOf.get(i.key)?.some((s) => matching.has(s.key))),
+  const listed = (issues ?? []).filter(
+    (i) => !isSub(i) && (showDone || i.status?.category !== 'done') && !hiddenStatusIds.includes(i.status?.id ?? ''),
   );
-  const listed = (issues ?? []).filter((i) => !isSub(i) && (showDone || i.status?.category !== 'done'));
+  const visible = listed.filter((i) => matching.has(i.key) || subtasksOf.get(i.key)?.some((s) => matching.has(s.key)));
   const [menu, setMenu] = useState<MenuState | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   // Stories/tasks rank among the section's stories/tasks; subtasks only among their siblings.
@@ -123,7 +125,7 @@ function Section({
     sel.set(new Set(), null);
     openIssue(issue.key);
   };
-  const filtering = filters.q || filters.assignees.length;
+  const filtering = filters.q || filters.assignees.length || hiddenStatusIds.length;
 
   /*
    * Drag & drop. Within a section: stories/tasks reorder among stories/tasks, subtasks only among
@@ -269,6 +271,12 @@ export function BacklogView() {
   const visible = sprints.filter((s) => !hiddenSprintIds.includes(s.id));
   const [expanded, setExpanded] = useLocalStorage<(number | 'backlog')[]>(`expanded:${board.id}`, []);
   const [filters, setFilters] = useLocalStorage<Filters>(`filters:backlog:${board.id}`, emptyFilters);
+  const [hiddenStatusIds, setHiddenStatusIds] = useLocalStorage<string[]>(`hiddenStatuses:backlog:${board.id}`, []);
+  const { data: columns } = useQuery({ queryKey: ['columns', board.id], queryFn: () => api.columns(board.id), staleTime: Infinity });
+  // Every status on the board, in column order; sections load lazily, so issues can't tell them all.
+  const statuses = (columns ?? []).flatMap((c) =>
+    c.statusIds.map((id, i) => ({ id, name: c.statusNames?.[i] ?? id, category: c.statusCategories?.[i] ?? 'new' })),
+  );
   const searchRef = useRef<HTMLInputElement>(null);
   useSlashFocus(searchRef);
   const drag = useRef<DragInfo | null>(null);
@@ -303,12 +311,13 @@ export function BacklogView() {
       </header>
       <div className="toolbar">
         <FilterBar filters={filters} onChange={setFilters} searchRef={searchRef} />
+        <StatusFilter statuses={statuses} hidden={hiddenStatusIds} onChange={setHiddenStatusIds} />
       </div>
       <div className="list">
         {visible.map((s) => (
-          <Section key={s.id} sprint={s} open={expanded.includes(s.id)} onToggle={() => toggle(s.id)} filters={filters} dnd={dnd} sel={sel} />
+          <Section key={s.id} sprint={s} open={expanded.includes(s.id)} onToggle={() => toggle(s.id)} filters={filters} dnd={dnd} sel={sel} hiddenStatusIds={hiddenStatusIds} />
         ))}
-        <Section sprint={null} open={expanded.includes('backlog')} onToggle={() => toggle('backlog')} filters={filters} dnd={dnd} sel={sel} />
+        <Section sprint={null} open={expanded.includes('backlog')} onToggle={() => toggle('backlog')} filters={filters} dnd={dnd} sel={sel} hiddenStatusIds={hiddenStatusIds} />
       </div>
       {multiMenu && (
         <ContextMenu

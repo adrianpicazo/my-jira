@@ -246,11 +246,13 @@ app.get('/api/boards/:id/columns', async (req, res) => {
   ]);
   // The board config only carries status ids; names are needed to split a column per status.
   const names = new Map(statuses.map((s) => [s.id, s.name]));
+  const categories = new Map(statuses.map((s) => [s.id, s.statusCategory?.key ?? 'new']));
   res.json(
     (cfg.columnConfig?.columns ?? []).map((c) => ({
       name: c.name,
       statusIds: c.statuses.map((s) => s.id),
       statusNames: c.statuses.map((s) => names.get(s.id) ?? s.id),
+      statusCategories: c.statuses.map((s) => categories.get(s.id) ?? 'new'),
     })),
   );
 });

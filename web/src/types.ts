@@ -67,6 +67,8 @@ export interface Column {
   statusIds: string[];
   /** Parallel to `statusIds`. */
   statusNames?: string[];
+  /** Parallel to `statusIds`. */
+  statusCategories?: Status['category'][];
   /** Set when this column is one status of a board column split apart. */
   splitFrom?: string;
 }
