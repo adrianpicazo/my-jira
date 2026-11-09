@@ -92,7 +92,8 @@ function Section({
   const listed = (issues ?? []).filter(
     (i) => !isSub(i) && (showDone || i.status?.category !== 'done') && !hiddenStatusIds.includes(i.status?.id ?? ''),
   );
-  const visible = listed.filter((i) => matching.has(i.key) || subtasksOf.get(i.key)?.some((s) => matching.has(s.key)));
+  // Filters apply to the rows themselves, not to the subtasks folded into them.
+  const visible = listed.filter((i) => matching.has(i.key));
   const [menu, setMenu] = useState<MenuState | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   // Stories/tasks rank among the section's stories/tasks; subtasks only among their siblings.
