@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { api } from '../api';
 import { useApp, useIssueActions, useLocalStorage } from '../hooks';
 import type { Issue, Sprint } from '../types';
 import { fmtRange } from '../util';
-import { applyFilters, emptyFilters, FilterBar, type Filters } from './FilterBar';
+import { applyFilters, assigneesOf, emptyFilters, FilterBar, type Filters } from './FilterBar';
 import { Icon, StatusIcon } from './icons';
 import { BacklogMenu, rankMoves, type MenuState } from './CardMenu';
 import { IssueRow } from './IssueRow';
@@ -271,6 +271,15 @@ export function BacklogView() {
   const visible = sprints.filter((s) => !hiddenSprintIds.includes(s.id));
   const [expanded, setExpanded] = useLocalStorage<(number | 'backlog')[]>(`expanded:${board.id}`, []);
   const [filters, setFilters] = useLocalStorage<Filters>(`filters:backlog:${board.id}`, emptyFilters);
+  // People to filter by: whoever is assigned in the sections loaded so far (read from the cache, no fetching).
+  const loaded = useQueries({
+    queries: [
+      ...visible.map((s) => ({ queryKey: ['issues', 'sprint', board.id, s.id], queryFn: () => api.sprintIssues(board.id, s.id), enabled: false })),
+      { queryKey: ['issues', 'backlog', board.id], queryFn: () => api.backlog(board.id), enabled: false },
+    ],
+    combine: (rs) => rs.flatMap((r) => r.data ?? []),
+  });
+  const users = assigneesOf(loaded);
   const [hiddenStatusIds, setHiddenStatusIds] = useLocalStorage<string[]>(`hiddenStatuses:backlog:${board.id}`, []);
   const { data: columns } = useQuery({ queryKey: ['columns', board.id], queryFn: () => api.columns(board.id), staleTime: Infinity });
   // Every status on the board, in column order; sections load lazily, so issues can't tell them all.
@@ -310,7 +319,7 @@ export function BacklogView() {
         </div>
       </header>
       <div className="toolbar">
-        <FilterBar filters={filters} onChange={setFilters} searchRef={searchRef} />
+        <FilterBar filters={filters} onChange={setFilters} users={users} searchRef={searchRef} />
         <StatusFilter statuses={statuses} hidden={hiddenStatusIds} onChange={setHiddenStatusIds} />
       </div>
       <div className="list">
