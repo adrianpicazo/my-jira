@@ -5,5 +5,11 @@ services:
     environment:
       PORT: 3101
     ports:
-      - "${PORT:-3101}:3101"
+      # Solo este Mac: con credenciales en .env, la app no pide login.
+      - "127.0.0.1:${PORT:-3101}:3101"
+    volumes:
+      - sessions:/app/data
     restart: unless-stopped
+
+volumes:
+  sessions:
