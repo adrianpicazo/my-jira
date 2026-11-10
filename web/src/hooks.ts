@@ -2,24 +2,42 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
 import { toast } from './toast';
-import type { Board, Column, Issue, IssueDetail, IssuePatch, Me, Sprint, Transition, User } from './types';
+import type { Board, Column, Issue, IssueDetail, IssuePatch, Me, Priority, Sprint, Transition, User } from './types';
 
+function readStorage<T>(key: string, initial: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? initial : (JSON.parse(raw) as T);
+  } catch {
+    return initial;
+  }
+}
+
+/** State kept in localStorage, so it survives switching views and reloads. Re-reads when `key` changes (e.g. per board). */
 export function useLocalStorage<T>(key: string, initial: T) {
-  const [value, setValue] = useState<T>(() => {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw === null ? initial : (JSON.parse(raw) as T);
-    } catch {
-      return initial;
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch {
-      /* storage unavailable */
-    }
-  }, [key, value]);
+  const [state, setState] = useState(() => ({ key, value: readStorage(key, initial) }));
+  // A new key (another board) starts from what's stored under it, not from the previous key's value.
+  let value = state.value;
+  if (state.key !== key) {
+    value = readStorage(key, initial);
+    setState({ key, value });
+  }
+  const setValue = useCallback(
+    (v: T | ((prev: T) => T)) =>
+      setState((s) => {
+        const prev = s.key === key ? s.value : readStorage(key, initial);
+        const next = typeof v === 'function' ? (v as (p: T) => T)(prev) : v;
+        try {
+          localStorage.setItem(key, JSON.stringify(next));
+        } catch {
+          /* storage unavailable */
+        }
+        return { key, value: next };
+      }),
+    // `initial` is only a fallback; callers pass literals.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [key],
+  );
   return [value, setValue] as const;
 }
 
@@ -133,6 +151,8 @@ export function useIssueActions() {
       run({ key, fn: () => api.transition(key, t.id), optimistic: { status: t.to } }),
     assign: (key: string, user: User | null) =>
       run({ key, fn: () => api.updateIssue(key, { assignee: user?.accountId ?? null }), optimistic: { assignee: user } }),
+    setPriority: (key: string, p: Priority) =>
+      run({ key, fn: () => api.updateIssue(key, { priority: p.id }), optimistic: { priority: { name: p.name, icon: p.icon } } }),
     setLabels: (key: string, labels: string[]) =>
       run({ key, fn: () => api.updateIssue(key, { labels }), optimistic: { labels } }),
     update: (key: string, patch: IssuePatch, optimistic?: Partial<Issue>) =>
@@ -145,8 +165,24 @@ export function useIssueActions() {
           parent: parent && { key: parent.key, summary: parent.summary, status: parent.status, issuetype: parent.issuetype },
         },
       }),
-    moveToSprint: (key: string, sprint: Sprint | null) =>
-      run({ key, fn: () => api.moveToSprint(key, sprint?.id ?? null), success: `${key} → ${sprint?.name ?? 'Backlog'}` }),
+    moveToSprint: (key: string, sprint: Sprint | null, opts?: { at?: { pos: 'before' | 'after'; target: string }; local?: () => void }) =>
+      run({
+        key,
+        fn: () => api.moveToSprint(key, sprint?.id ?? null, opts?.at),
+        local: opts?.local,
+        success: `${key} → ${sprint?.name ?? 'Backlog'}`,
+      }),
+    moveManyToSprint: (keys: string[], sprint: Sprint | null) =>
+      run({
+        key: keys[0]!,
+        fn: () => api.moveManyToSprint(keys, sprint?.id ?? null),
+        // Out of every list they're in (with their subtasks); the target list refetches.
+        local: () =>
+          qc.setQueriesData<Issue[]>({ queryKey: ['issues'] }, (old) =>
+            old?.filter((i) => !keys.includes(i.key) && !(i.parent && keys.includes(i.parent.key))),
+          ),
+        success: `${keys.length} issues → ${sprint?.name ?? 'Backlog'}`,
+      }),
     rank: (key: string, pos: 'before' | 'after', target: string) =>
       run({ key, fn: () => api.rank(key, pos, target), local: () => moveLocal(key, pos, target) }),
     deleteIssue: (key: string) =>

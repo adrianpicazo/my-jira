@@ -1,12 +1,15 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useApp, useLocalStorage } from '../hooks';
 import type { Column, Issue, ParentRef, User } from '../types';
 import { colorFor, daysLeft, fmtRange } from '../util';
+import { BacklogMenu, rankMoves, type MenuState } from './CardMenu';
+import { EpicFilter, NO_EPIC, type EpicOption } from './EpicFilter';
 import { applyFilters, assigneesOf, emptyFilters, FilterBar, type Filters } from './FilterBar';
 import { Avatar, Icon, StatusIcon } from './icons';
 import { IssueRow } from './IssueRow';
+import { applyLaneOrder, useLaneDrag } from './useLaneDrag';
 import { AssigneePicker, StatusPicker } from './Pickers';
 import { SprintFilter } from './SprintFilter';
 import { StatusFilter, statusesOf } from './StatusFilter';
@@ -100,13 +103,20 @@ export function SprintView() {
   const [layout, setLayout] = useLocalStorage<'list' | 'board'>('layout', 'list');
   // In the board, status is already the column axis.
   const laneBy: GroupBy = layout === 'board' && groupBy === 'status' ? 'none' : groupBy;
-  const [filters, setFilters] = useState<Filters>(emptyFilters);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [filters, setFilters] = useLocalStorage<Filters>(`filters:sprint:${board.id}`, emptyFilters);
+  const [collapsedList, setCollapsedList] = useLocalStorage<string[]>(`collapsedLanes:${board.id}`, []);
+  const collapsed = useMemo(() => new Set(collapsedList), [collapsedList]);
+  const setCollapsed = (next: Set<string> | ((s: Set<string>) => Set<string>)) =>
+    setCollapsedList((prev) => [...(typeof next === 'function' ? next(new Set(prev)) : next)]);
   const [hiddenStatusStore, setHiddenStatusStore] = useLocalStorage<Record<string, string[]>>('hiddenStatusIds', {});
   const hiddenStatusIds = hiddenStatusStore[board.id] ?? [];
   const [collapsedStories, setCollapsedStories] = useLocalStorage<string[]>('collapsedStories', []);
+  const [hiddenEpicStore, setHiddenEpicStore] = useLocalStorage<Record<string, string[]>>('hiddenEpics', {});
+  const hiddenEpics = hiddenEpicStore[board.id] ?? [];
   const searchRef = useRef<HTMLInputElement>(null);
   useSlashFocus(searchRef);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
 
   const { data: issues, isLoading, error } = useQuery({
     queryKey: ['issues', 'sprint', board.id, sprint?.id],
@@ -130,8 +140,30 @@ export function SprintView() {
   const epics = useMemo(() => new Map((epicIssues ?? []).map((e) => [e.key, e])), [epicIssues]);
 
   const all = issues ?? [];
+  const byKey = useMemo(() => new Map(all.map((i) => [i.key, i])), [all]);
+  const epicKeyOf = (i: Issue) => epicOf(i, byKey)?.key ?? NO_EPIC;
+  // Epics in the sprint, in swimlane order, plus "no epic" at the end when some issue has none.
+  const epicOptions = useMemo<EpicOption[]>(() => {
+    const seen = new Map<string, EpicOption>();
+    for (const i of all) {
+      const e = epicOf(i, byKey);
+      if (e && !seen.has(e.key)) seen.set(e.key, { key: e.key, summary: epics.get(e.key)?.summary ?? e.summary });
+    }
+    const out = [...seen.values()];
+    if (all.some((i) => !epicOf(i, byKey))) out.push({ key: NO_EPIC, summary: '' });
+    return out;
+  }, [all, byKey, epics]);
+  const epicFiltered = laneBy === 'epic' && hiddenEpics.length > 0;
+  // Same menu as the backlog: stories/tasks rank among the sprint's, subtasks only among their siblings.
+  const openMenu = (e: React.MouseEvent, issue: Issue) => {
+    e.preventDefault();
+    const peers = all
+      .filter((i) => (issue.issuetype?.subtask ? i.issuetype?.subtask && i.parent?.key === issue.parent?.key : !i.issuetype?.subtask))
+      .map((i) => i.key);
+    setMenu({ x: e.clientX, y: e.clientY, issue, moves: rankMoves(issue.key, peers) });
+  };
   const visible = applyFilters(
-    all.filter((i) => !hiddenStatusIds.includes(i.status?.id ?? '')),
+    all.filter((i) => !hiddenStatusIds.includes(i.status?.id ?? '') && (!epicFiltered || !hiddenEpics.includes(epicKeyOf(i)))),
     filters,
   );
   // Stories with subtasks in view (on the board or as a placeholder): the ones the board can fold.
@@ -142,9 +174,16 @@ export function SprintView() {
   const allStoriesFolded = storiesWithSubtasks.length > 0 && storiesWithSubtasks.every((k) => collapsedStories.includes(k));
   const toggleStory = (key: string) =>
     setCollapsedStories(collapsedStories.includes(key) ? collapsedStories.filter((k) => k !== key) : [...collapsedStories, key]);
-  const groups = groupIssues(visible, all, laneBy, columns, epics);
+  // Swimlanes can be reordered by dragging their headers; the order is kept per board and grouping.
+  const [laneOrder, setLaneOrder] = useLocalStorage<string[]>(`laneOrder:${board.id}:${laneBy}`, []);
+  const groups = applyLaneOrder(groupIssues(visible, all, laneBy, columns, epics), laneOrder);
+  const laneDrag = useLaneDrag(
+    groups.map((g) => g.id),
+    setLaneOrder,
+  );
   const left = daysLeft(sprint?.endDate);
 
+  const allGroupsFolded = groups.length > 0 && groups.every((g) => collapsed.has(g.id));
   const toggle = (id: string) =>
     setCollapsed((s) => {
       const n = new Set(s);
@@ -188,6 +227,26 @@ export function SprintView() {
           hidden={hiddenStatusIds}
           onChange={(ids) => setHiddenStatusStore({ ...hiddenStatusStore, [board.id]: ids })}
         />
+        {laneBy === 'epic' && epicOptions.length > 0 && (
+          <EpicFilter
+            epics={epicOptions}
+            hidden={hiddenEpics}
+            onChange={(keys) => setHiddenEpicStore({ ...hiddenEpicStore, [board.id]: keys })}
+          />
+        )}
+        {laneBy !== 'none' && laneOrder.length > 0 && (
+          <button className="btn btn-ghost" title="Volver al orden por defecto de los swimlanes" onClick={() => setLaneOrder([])}>
+            <Icon.Refresh size={13} /> Orden
+          </button>
+        )}
+        {laneBy !== 'none' && groups.length > 0 && (
+          <button className="btn btn-ghost" onClick={() => setCollapsed(allGroupsFolded ? new Set() : new Set(groups.map((g) => g.id)))}>
+            <Icon.Chevron open={!allGroupsFolded} />{' '}
+            {allGroupsFolded
+              ? layout === 'board' ? 'Desplegar swimlanes' : 'Desplegar grupos'
+              : layout === 'board' ? 'Plegar swimlanes' : 'Plegar grupos'}
+          </button>
+        )}
         {layout === 'board' && storiesWithSubtasks.length > 0 && (
           <button
             className="btn btn-ghost"
@@ -242,28 +301,33 @@ export function SprintView() {
             hiddenStatusIds={hiddenStatusIds}
             collapsedStories={collapsedStories}
             onToggleStory={toggleStory}
+            laneDrag={laneDrag}
           />
         )
       ) : (
       <div className="list">
         {groups.map((g) =>
           g.header === null ? (
-            g.issues.map((i) => <IssueRow key={i.key} issue={i} />)
+            g.issues.map((i) => <IssueRow key={i.key} issue={i} preview onContextMenu={(e) => openMenu(e, i)} />)
           ) : (
             <section key={g.id} className="group">
-              <div className="group-header" onClick={() => toggle(g.id)}>
+              <div {...laneDrag(g.id)} className={`group-header${laneDrag(g.id).className}`} onClick={() => toggle(g.id)}>
                 <Icon.Chevron open={!collapsed.has(g.id)} />
                 {g.header}
                 <span className="group-count">
                   <Progress issues={g.issues} />
                 </span>
               </div>
-              {!collapsed.has(g.id) && g.issues.map((i) => <IssueRow key={i.key} issue={i} showParent={groupBy !== 'epic'} />)}
+              {!collapsed.has(g.id) &&
+                g.issues.map((i) => (
+                  <IssueRow key={i.key} issue={i} preview showParent={groupBy !== 'epic'} onContextMenu={(e) => openMenu(e, i)} />
+                ))}
             </section>
           ),
         )}
       </div>
       )}
+      {menu && <BacklogMenu state={menu} sprintId={sprint?.id ?? null} onClose={closeMenu} />}
     </div>
   );
 }

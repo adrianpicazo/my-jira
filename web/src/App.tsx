@@ -1,11 +1,12 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from './api';
+import { api, ApiError } from './api';
 import { AppContext, useLocalStorage, useRoute, type AppCtx, type View } from './hooks';
 import { useToasts } from './toast';
 import type { Board, Me } from './types';
 import { Avatar, Icon } from './components/icons';
 import { BacklogView } from './components/BacklogView';
+import { GoToIssue } from './components/GoToIssue';
 import { IssuePanel } from './components/IssuePanel';
 import { Menu } from './components/Menu';
 import { Popover } from './components/Popover';
@@ -20,6 +21,83 @@ function Toasts() {
           {t.message}
         </div>
       ))}
+    </div>
+  );
+}
+
+function Login({ message }: { message: string }) {
+  const qc = useQueryClient();
+  const config = useQuery({ queryKey: ['authConfig'], queryFn: api.authConfig, staleTime: Infinity });
+  const [site, setSite] = useLocalStorage('loginSite', '');
+  const [email, setEmail] = useLocalStorage('loginEmail', '');
+  const [token, setToken] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const fixedSite = config.data?.site;
+
+  const submit = async () => {
+    setSending(true);
+    setError(null);
+    try {
+      await api.login({ site: fixedSite ? undefined : site, email, token });
+      qc.resetQueries();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="setup">
+      <h1>Entrar en Jira</h1>
+      <p className="muted">{message}</p>
+      <form
+        className="login-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+      >
+        <label>
+          <span>Sitio de Jira</span>
+          {fixedSite ? (
+            <input value={fixedSite} disabled />
+          ) : (
+            <input required placeholder="https://tu-sitio.atlassian.net" value={site} onChange={(e) => setSite(e.target.value)} />
+          )}
+        </label>
+        <label>
+          <span>Email</span>
+          <input required type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
+        </label>
+        <label>
+          <span>API token</span>
+          {/* Not a password: keep password managers from filling in the Atlassian account password. */}
+          <input
+            required
+            type="password"
+            name="jira-api-token"
+            autoComplete="off"
+            data-1p-ignore
+            data-lpignore="true"
+            placeholder="ATATT3…"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+          />
+          <small className="muted">
+            Créalo en{' '}
+            <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer">
+              id.atlassian.com → API tokens
+            </a>
+            . Se guarda en el servidor, no en el navegador.
+          </small>
+        </label>
+        {error && <p className="error">{error}</p>}
+        <button type="submit" className="btn btn-primary full" disabled={sending}>
+          {sending ? 'Comprobando…' : 'Entrar'}
+        </button>
+      </form>
     </div>
   );
 }
@@ -48,7 +126,7 @@ function Setup({ message }: { message: string }) {
   );
 }
 
-function Sidebar({ me, board, boards, onBoard, view, onView }: { me: Me; board: Board; boards: Board[]; onBoard: (id: number) => void; view: View; onView: (v: View) => void }) {
+function Sidebar({ me, board, boards, onBoard, view, onView, onOpen }: { me: Me; board: Board; boards: Board[]; onBoard: (id: number) => void; view: View; onView: (v: View) => void; onOpen: (key: string) => void }) {
   const qc = useQueryClient();
   const fetching = useIsFetching();
   return (
@@ -74,6 +152,7 @@ function Sidebar({ me, board, boards, onBoard, view, onView }: { me: Me; board: 
           />
         )}
       </Popover>
+      <GoToIssue projectKey={board.projectKey} onOpen={onOpen} />
       <div className="nav">
         <button className={`nav-item${view === 'sprint' ? ' on' : ''}`} onClick={() => onView('sprint')}>
           <Icon.Sprint /> Sprint actual
@@ -90,6 +169,11 @@ function Sidebar({ me, board, boards, onBoard, view, onView }: { me: Me; board: 
         <button className={`icon-btn${fetching ? ' spinning' : ''}`} title="Refrescar" onClick={() => qc.invalidateQueries()}>
           <Icon.Refresh />
         </button>
+        {me.session && (
+          <button className="icon-btn" title="Cerrar sesión" onClick={() => api.logout().finally(() => window.location.reload())}>
+            <Icon.Logout />
+          </button>
+        )}
       </div>
     </nav>
   );
@@ -139,6 +223,7 @@ export function App() {
   const openIssue = useCallback((key: string) => navigate(view, key), [navigate, view]);
   const closeIssue = useCallback(() => navigate(view, null), [navigate, view]);
 
+  if (meQ.error instanceof ApiError && meQ.error.login) return <Login message={meQ.error.message} />;
   if (meQ.error) return <Setup message={(meQ.error as Error).message} />;
   if (boardsQ.error) return <Setup message={(boardsQ.error as Error).message} />;
   if (meQ.data && boardsQ.data && boards.length && !board) {
@@ -161,7 +246,7 @@ export function App() {
   return (
     <AppContext.Provider value={ctx}>
       <div className="app">
-        <Sidebar me={meQ.data} board={board} boards={boards} onBoard={setBoardId} view={view} onView={(v) => navigate(v, null)} />
+        <Sidebar me={meQ.data} board={board} boards={boards} onBoard={setBoardId} view={view} onView={(v) => navigate(v, null)} onOpen={openIssue} />
         <div className="main">{view === 'sprint' ? <SprintView /> : <BacklogView />}</div>
         {issue && <IssuePanel key={issue} issueKey={issue} onClose={closeIssue} onOpen={openIssue} />}
         <Toasts />

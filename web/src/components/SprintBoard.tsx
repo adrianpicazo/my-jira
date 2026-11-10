@@ -1,29 +1,57 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
-import { useApp, useIssueActions } from '../hooks';
+import { useApp, useIssueActions, useLocalStorage } from '../hooks';
 import { toast } from '../toast';
 import type { Column, Issue, ParentRef } from '../types';
 import { colorFor, typeColor } from '../util';
 import { Icon, PriorityIcon, StatusIcon } from './icons';
-import { CardMenu, type CardMenuState } from './CardMenu';
+import { CardMenu, rankMoves, type MenuState } from './CardMenu';
+import { ContextMenu } from './ContextMenu';
 import { AssigneePicker, LabelChips } from './Pickers';
 import { Progress } from './Progress';
 import type { Group } from './SprintView';
 import { statusesOf } from './StatusFilter';
+import type { LaneDrag } from './useLaneDrag';
 
-/** Board columns from the Jira board config, or one per status seen when that isn't loaded yet. */
-function useColumns(columns: Column[] | undefined, issues: Issue[]): Column[] {
+/**
+ * Board columns from the Jira board config, or one per status seen when that isn't loaded yet.
+ * Columns named in `split` become one column per status.
+ */
+function useColumns(columns: Column[] | undefined, issues: Issue[], split: string[]): Column[] {
   return useMemo(() => {
-    const mapped = columns?.filter((c) => c.statusIds.length);
+    const mapped = columns
+      ?.filter((c) => c.statusIds.length)
+      .flatMap((c) =>
+        c.statusIds.length > 1 && split.includes(c.name)
+          ? c.statusIds.map((id, i) => ({ name: c.statusNames?.[i] ?? id, statusIds: [id], splitFrom: c.name }))
+          : [c],
+      );
     if (mapped?.length) return mapped;
     const seen = new Map<string, Column>();
     for (const i of issues) if (i.status && !seen.has(i.status.id)) seen.set(i.status.id, { name: i.status.name, statusIds: [i.status.id] });
     return [...seen.values()];
-  }, [columns, issues]);
+  }, [columns, issues, split]);
 }
 
 type DropPos = 'before' | 'after';
+
+const colKey = (c: Column) => c.statusIds.join(',');
+
+/**
+ * Applies the user's saved column order. Columns it doesn't know (a column just split or joined,
+ * or one added in Jira) go right after the column that precedes them in Jira's order.
+ */
+function applyOrder(cols: Column[], order: string[]): Column[] {
+  if (!order.length) return cols;
+  const out = order.map((k) => cols.find((c) => colKey(c) === k)).filter((c): c is Column => !!c);
+  cols.forEach((c, i) => {
+    if (out.includes(c)) return;
+    const prev = cols[i - 1];
+    out.splice(prev ? out.indexOf(prev) + 1 : 0, 0, c);
+  });
+  return out;
+}
 
 /** Subtasks of the hovered story that are scrolled out of view, counted per column and direction. */
 interface Offscreen {
@@ -119,7 +147,8 @@ function FoldToggle({
 }
 
 /** "N pendientes · de M" over every subtask of the story, with a per-status breakdown on hover. */
-function SubtaskStats({ subtasks, columns }: { subtasks: Issue[]; columns: Column[] }) {
+export function SubtaskStats({ subtasks, columns }: { subtasks: Issue[]; columns: Column[] }) {
+  const { openIssue } = useApp();
   const pending = subtasks.filter((s) => s.status?.category !== 'done').length;
   return (
     <span className="subtask-stats">
@@ -129,16 +158,64 @@ function SubtaskStats({ subtasks, columns }: { subtasks: Issue[]; columns: Colum
           <span>Total</span>
           <span>{subtasks.length}</span>
         </span>
-        {statusesOf(subtasks, columns).map((s) => (
-          <span key={s.id} className="tooltip-row">
-            <span className="tooltip-status">
-              <StatusIcon status={s} size={12} /> {s.name}
+        {statusesOf(subtasks, columns).map((s) => {
+          const inStatus = subtasks.filter((x) => x.status?.id === s.id);
+          return (
+            <span key={s.id} className={`tooltip-row${s.category !== 'done' ? ' has-sub' : ''}`}>
+              <span className="tooltip-status">
+                <StatusIcon status={s} size={12} /> {s.name}
+              </span>
+              <span>{inStatus.length}</span>
+              {/* Pending subtasks are listed on hover; spans, since this sits inside the fold button. */}
+              {s.category !== 'done' && (
+                <span className="tooltip tooltip-sub">
+                  {inStatus.map((x) => (
+                    <span
+                      key={x.key}
+                      role="link"
+                      className="tooltip-row tooltip-link"
+                      title={x.key}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openIssue(x.key);
+                      }}
+                    >
+                      <span className="ellipsis">{x.summary}</span>
+                    </span>
+                  ))}
+                </span>
+              )}
             </span>
-            <span>{subtasks.filter((x) => x.status?.id === s.id).length}</span>
+          );
+        })}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Width of a minimized column: five letters and a count. Fixed, since the header row and every
+ * swimlane are separate grids that must line up.
+ */
+const MIN_WIDTH = 80;
+
+/** A minimized column's cell: how many cards it holds, their titles on hover, expand on click. */
+function MinimizedCell({ issues, alignRight, onExpand }: { issues: Issue[]; alignRight: boolean; onExpand: () => void }) {
+  return (
+    <button className="min-card" onClick={onExpand}>
+      {issues.length}
+      <span className={`tooltip min-tooltip${alignRight ? ' align-right' : ''}`}>
+        {issues.map((i) => (
+          <span key={i.key} className="tooltip-row">
+            <span className="ellipsis">
+              {i.issuetype?.subtask && <span className="muted">↳ </span>}
+              {i.summary}
+            </span>
+            <span className="muted">{i.key}</span>
           </span>
         ))}
       </span>
-    </span>
+    </button>
   );
 }
 
@@ -286,6 +363,7 @@ export function SprintBoard({
   collapsedStories,
   onToggleStory,
   currentSprintId,
+  laneDrag,
 }: {
   groups: Group[];
   columns: Column[] | undefined;
@@ -298,15 +376,49 @@ export function SprintBoard({
   collapsedStories: string[];
   onToggleStory: (key: string) => void;
   currentSprintId?: number;
+  laneDrag: LaneDrag;
 }) {
   const qc = useQueryClient();
   const { transition, rank } = useIssueActions();
-  const allColumns = useColumns(rawColumns, issues);
+  const { board } = useApp();
+  const [splitStore, setSplitStore] = useLocalStorage<Record<string, string[]>>('splitColumns', {});
+  const split = useMemo(() => splitStore[board.id] ?? [], [splitStore, board.id]);
+  const toggleSplit = (name: string) =>
+    setSplitStore({ ...splitStore, [board.id]: split.includes(name) ? split.filter((n) => n !== name) : [...split, name] });
+  const [orderStore, setOrderStore] = useLocalStorage<Record<string, string[]>>('columnOrder', {});
+  const order = useMemo(() => orderStore[board.id] ?? [], [orderStore, board.id]);
+  const jiraColumns = useColumns(rawColumns, issues, split);
+  const allColumns = useMemo(() => applyOrder(jiraColumns, order), [jiraColumns, order]);
   // A column disappears only when every status mapped to it is hidden.
   const columns = useMemo(
     () => allColumns.filter((c) => c.statusIds.some((s) => !hiddenStatusIds.includes(s))),
     [allColumns, hiddenStatusIds],
   );
+  const customOrder = order.length > 0 && allColumns.some((c, i) => c !== jiraColumns[i]);
+
+  // Column reordering by dragging headers; independent from card drag & drop.
+  const colDrag = useRef<string | null>(null);
+  const [colDrop, setColDrop] = useState<{ key: string; pos: DropPos } | null>(null);
+  const moveColumn = (from: string, to: string, pos: DropPos) => {
+    if (from === to) return;
+    const keys = allColumns.map(colKey).filter((k) => k !== from);
+    keys.splice(keys.indexOf(to) + (pos === 'after' ? 1 : 0), 0, from);
+    setOrderStore({ ...orderStore, [board.id]: keys });
+  };
+  // Minimized columns shrink to a strip; each cell shows a count of its cards instead.
+  const [minStore, setMinStore] = useLocalStorage<Record<string, string[]>>('minimizedColumns', {});
+  const minimized = useMemo(() => minStore[board.id] ?? [], [minStore, board.id]);
+  const setMinimized = (key: string, on: boolean) =>
+    setMinStore({ ...minStore, [board.id]: on ? [...minimized, key] : minimized.filter((k) => k !== key) });
+  const [colMenu, setColMenu] = useState<{ x: number; y: number; key: string } | null>(null);
+  const openColMenu = (e: React.MouseEvent, key: string) => {
+    e.preventDefault();
+    setColMenu({ x: e.clientX, y: e.clientY, key });
+  };
+  const resetOrder = () => {
+    const { [board.id]: _, ...rest } = orderStore;
+    setOrderStore(rest);
+  };
   const colOf = useMemo(() => {
     const m = new Map<string, number>();
     columns.forEach((c, idx) => c.statusIds.forEach((s) => m.set(s, idx)));
@@ -344,7 +456,8 @@ export function SprintBoard({
   };
 
   const isFolded = (i: Issue) => !!i.issuetype?.subtask && !!i.parent && collapsedStories.includes(i.parent.key);
-  const grid: CSSProperties = { gridTemplateColumns: `repeat(${columns.length}, minmax(260px, 1fr))` };
+  const isMin = (c: Column) => minimized.includes(colKey(c));
+  const grid: CSSProperties = { gridTemplateColumns: columns.map((c) => (isMin(c) ? `${MIN_WIDTH}px` : 'minmax(260px, 1fr)')).join(' ') };
 
   /* ---------- drag & drop ---------- */
 
@@ -386,22 +499,13 @@ export function SprintBoard({
     return () => board.removeEventListener('scroll', compute);
   }, [hoverStory, subtasksOf, colOf]);
 
-  const [menu, setMenu] = useState<CardMenuState | null>(null);
+  const [menu, setMenu] = useState<MenuState | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   /** `peers` are the keys it can be ranked among (units of its cell, or its sibling subtasks), in order. */
   const openMenu = (e: React.MouseEvent, issue: Issue, peers: string[]) => {
     e.preventDefault();
     e.stopPropagation();
-    const ranked = peers.filter((k) => rankIndex.has(k));
-    const first = ranked[0];
-    const last = ranked[ranked.length - 1];
-    setMenu({
-      x: e.clientX,
-      y: e.clientY,
-      issue,
-      top: first && first !== issue.key ? { pos: 'before', target: first } : undefined,
-      bottom: last && last !== issue.key ? { pos: 'after', target: last } : undefined,
-    });
+    setMenu({ x: e.clientX, y: e.clientY, issue, moves: rankMoves(issue.key, peers.filter((k) => rankIndex.has(k))) });
   };
 
   const drag = useRef<DragState | null>(null);
@@ -458,14 +562,77 @@ export function SprintBoard({
 
   return (
     <div className="board" ref={boardRef}>
-      <div className="board-inner" style={{ minWidth: columns.length * 268 + 24 }}>
+      <div className="board-inner" style={{ minWidth: columns.reduce((w, c) => w + (isMin(c) ? MIN_WIDTH + 8 : 268), 24) }}>
         <div className="board-cols" style={grid}>
-          {columns.map((c) => {
+          {columns.map((c, idx) => {
             const n = issues.filter((i) => !isFolded(i) && c.statusIds.includes(i.status?.id ?? '')).length;
+            const splittable = !c.splitFrom && c.statusIds.length > 1;
+            // Only the first of a split group offers to join it back.
+            const firstOfSplit = c.splitFrom && columns[idx - 1]?.splitFrom !== c.splitFrom;
+            const key = colKey(c);
+            if (isMin(c))
+              return (
+                <button
+                  key={key}
+                  className="board-col-head board-col-min"
+                  title={`${c.name} · pulsa para expandir`}
+                  onClick={() => setMinimized(key, false)}
+                  onContextMenu={(e) => openColMenu(e, key)}
+                >
+                  <span>{c.name.slice(0, 5).trim()}</span>
+                  <span className="muted">{n}</span>
+                </button>
+              );
             return (
-              <div key={c.name} className="board-col-head">
-                <span>{c.name}</span>
+              <div
+                key={key}
+                className={`board-col-head${colDrop?.key === key ? ` drop-${colDrop.pos}` : ''}`}
+                draggable
+                title="Arrastra para reordenar · clic derecho para minimizar"
+                onContextMenu={(e) => openColMenu(e, key)}
+                onDragStart={(e) => {
+                  colDrag.current = key;
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', c.name);
+                }}
+                onDragEnd={() => {
+                  colDrag.current = null;
+                  setColDrop(null);
+                }}
+                onDragOver={(e) => {
+                  if (!colDrag.current) return;
+                  e.preventDefault();
+                  const r = e.currentTarget.getBoundingClientRect();
+                  const pos: DropPos = e.clientX < r.left + r.width / 2 ? 'before' : 'after';
+                  if (colDrop?.key !== key || colDrop.pos !== pos) setColDrop({ key, pos });
+                }}
+                onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setColDrop(null)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const from = colDrag.current;
+                  colDrag.current = null;
+                  setColDrop(null);
+                  if (from) moveColumn(from, key, e.clientX < e.currentTarget.getBoundingClientRect().left + e.currentTarget.offsetWidth / 2 ? 'before' : 'after');
+                }}
+              >
+                <span className="ellipsis" title={c.splitFrom ? `${c.name} (de ${c.splitFrom})` : undefined}>
+                  {c.name}
+                </span>
                 <span className="muted">{n}</span>
+                {customOrder && idx === columns.length - 1 && (
+                  <button className="icon-btn" title="Restablecer el orden de columnas de Jira" onClick={resetOrder}>
+                    <Icon.Refresh size={13} />
+                  </button>
+                )}
+                {(splittable || firstOfSplit) && (
+                  <button
+                    className="icon-btn col-split"
+                    title={splittable ? `Separar por estado (${c.statusNames?.join(', ') ?? c.statusIds.length})` : `Juntar en «${c.splitFrom}»`}
+                    onClick={() => toggleSplit(c.splitFrom ?? c.name)}
+                  >
+                    {splittable ? <Icon.Split size={13} /> : <Icon.Merge size={13} />}
+                  </button>
+                )}
               </div>
             );
           })}
@@ -475,7 +642,7 @@ export function SprintBoard({
           return (
             <section key={g.id} className="lane">
               {g.header !== null && (
-                <div className="lane-head" onClick={() => onToggle(g.id)}>
+                <div {...laneDrag(g.id)} className={`lane-head${laneDrag(g.id).className}`} onClick={() => onToggle(g.id)}>
                   <div className="lane-title">
                     <Icon.Chevron open={open} />
                     {g.header}
@@ -487,10 +654,13 @@ export function SprintBoard({
                 <div className="lane-cells" style={grid}>
                   {cells(g).map((list, colIdx) => {
                     const cellId = `${g.id}:${colIdx}`;
+                    const col = columns[colIdx]!;
+                    const shown = list.filter((i) => !isFolded(i));
                     return (
                       <div
                         key={cellId}
-                        className={`cell${overCell === cellId ? ' over' : ''}`}
+                        className={`cell${overCell === cellId ? ' over' : ''}${isMin(col) ? ' cell-min' : ''}`}
+                        onContextMenu={(e) => openColMenu(e, colKey(col))}
                         onDragOver={(e) => {
                           const d = drag.current;
                           // Other columns of the same swimlane accept cards and subtasks as a status change.
@@ -509,7 +679,15 @@ export function SprintBoard({
                           else if (d.colIdx !== colIdx && d.kind !== 'placeholder' && d.laneId === g.id) transitionTo(d.key, colIdx);
                         }}
                       >
-                        {(() => {
+                        {isMin(col) ? (
+                          shown.length > 0 && (
+                            <MinimizedCell
+                              issues={shown}
+                              alignRight={colIdx > columns.length / 2}
+                              onExpand={() => setMinimized(colKey(col), false)}
+                            />
+                          )
+                        ) : (() => {
                           const units = arrange(list, rankOf);
                           const unitKeys = units.map((u) => (u.head.kind === 'card' ? u.head.issue.key : u.head.parent.key));
                           return units.map((unit) => {
@@ -605,6 +783,18 @@ export function SprintBoard({
         </div>
       ))}
       {menu && <CardMenu state={menu} currentSprintId={currentSprintId} onClose={closeMenu} />}
+      {colMenu && (
+        <ContextMenu
+          x={colMenu.x}
+          y={colMenu.y}
+          onClose={() => setColMenu(null)}
+          items={[
+            minimized.includes(colMenu.key)
+              ? { label: 'Expandir columna', icon: <Icon.Split size={14} />, onSelect: () => setMinimized(colMenu.key, false) }
+              : { label: 'Minimizar columna', icon: <Icon.Merge size={14} />, onSelect: () => setMinimized(colMenu.key, true) },
+          ]}
+        />
+      )}
     </div>
   );
 }

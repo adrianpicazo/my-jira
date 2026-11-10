@@ -62,7 +62,7 @@ export function StatusPicker({ issueKey, status, variant = 'icon' }: { issueKey:
 
 /* ---------- Assignee ---------- */
 
-function AssigneeMenu({ issueKey, assignee, close }: { issueKey: string; assignee: User | null; close: () => void }) {
+export function AssigneeMenu({ issueKey, assignee, close }: { issueKey: string; assignee: User | null; close: () => void }) {
   const { me } = useApp();
   const { assign } = useIssueActions();
   const [q, setQ] = useState('');
@@ -238,24 +238,45 @@ export function SprintPicker({ issueKey, sprint }: { issueKey: string; sprint: S
 
 /* ---------- Parent ---------- */
 
-function ParentMenu({ issueKey, project, parent, close }: { issueKey: string; project: string; parent: ParentRef | null; close: () => void }) {
+/** Epic for stories/tasks; for subtasks (`subtask`), the story they belong to, which they can't go without. */
+export function ParentMenu({
+  issueKey,
+  project,
+  parent,
+  subtask = false,
+  close,
+}: {
+  issueKey: string;
+  project: string;
+  parent: ParentRef | null;
+  subtask?: boolean;
+  close: () => void;
+}) {
   const { setParent } = useIssueActions();
   const [q, setQ] = useState('');
   const dq = useDebounced(q);
+  const level = subtask ? 'story' : 'epic';
   const { data, isFetching } = useQuery({
-    queryKey: ['parents', project, dq],
-    queryFn: () => api.parents(project, dq),
+    queryKey: ['parents', project, level, dq],
+    queryFn: () => api.parents(project, dq, level),
     placeholderData: keepPreviousData,
   });
-  const epics: Issue[] = data ?? [];
+  const epics: Issue[] = (data ?? []).filter((e) => e.key !== issueKey && e.key !== parent?.key);
+  const icon = (key: string, status: Status | null) =>
+    subtask ? <StatusIcon status={status} /> : <Icon.Epic color={colorFor(key)} size={12} />;
+  // The current parent always heads the list (it may be done or not among the results), so picking another reads as a change.
+  const current: MenuItem[] =
+    parent && !q
+      ? [{ id: parent.key, label: parent.summary, icon: icon(parent.key, parent.status), hint: `${parent.key} · actual`, selected: true }]
+      : [];
   const items: MenuItem[] = [
-    ...(q ? [] : [{ id: '', label: 'Sin padre', icon: <Icon.Close size={13} />, selected: !parent }]),
+    ...current,
+    ...(q || subtask || !parent ? [] : [{ id: '', label: 'Quitar épica', icon: <Icon.Close size={13} /> }]),
     ...epics.map((e) => ({
       id: e.key,
       label: e.summary,
-      icon: <Icon.Epic color={colorFor(e.key)} size={12} />,
+      icon: icon(e.key, e.status),
       hint: e.key,
-      selected: e.key === parent?.key,
     })),
   ];
   return (
@@ -264,7 +285,9 @@ function ParentMenu({ issueKey, project, parent, close }: { issueKey: string; pr
       query={q}
       onQuery={setQ}
       loading={isFetching}
-      placeholder="Buscar épica o clave…"
+      placeholder={
+        parent ? (subtask ? 'Cambiar a otra historia…' : 'Cambiar a otra épica…') : subtask ? 'Buscar historia o clave…' : 'Buscar épica o clave…'
+      }
       onSelect={(item) => {
         close();
         if (item.id === (parent?.key ?? '')) return;
@@ -274,7 +297,17 @@ function ParentMenu({ issueKey, project, parent, close }: { issueKey: string; pr
   );
 }
 
-export function ParentPicker({ issueKey, project, parent }: { issueKey: string; project: string; parent: ParentRef | null }) {
+export function ParentPicker({
+  issueKey,
+  project,
+  parent,
+  subtask = false,
+}: {
+  issueKey: string;
+  project: string;
+  parent: ParentRef | null;
+  subtask?: boolean;
+}) {
   return (
     <Popover
       width={340}
@@ -286,12 +319,12 @@ export function ParentPicker({ issueKey, project, parent }: { issueKey: string; 
               <span className="ellipsis">{parent.summary}</span>
             </>
           ) : (
-            <span className="muted">Sin padre</span>
+            <span className="muted">{subtask ? 'Sin historia' : 'Añadir épica'}</span>
           )}
         </Trigger>
       )}
     >
-      {(close) => <ParentMenu issueKey={issueKey} project={project} parent={parent} close={close} />}
+      {(close) => <ParentMenu issueKey={issueKey} project={project} parent={parent} subtask={subtask} close={close} />}
     </Popover>
   );
 }

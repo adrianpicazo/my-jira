@@ -8,6 +8,8 @@ export interface User {
 
 export interface Me extends User {
   baseUrl: string;
+  /** Signed in through the login form (vs. the server's .env token). */
+  session: boolean;
 }
 
 export interface Status {
@@ -63,6 +65,12 @@ export interface Board {
 export interface Column {
   name: string;
   statusIds: string[];
+  /** Parallel to `statusIds`. */
+  statusNames?: string[];
+  /** Parallel to `statusIds`. */
+  statusCategories?: Status['category'][];
+  /** Set when this column is one status of a board column split apart. */
+  splitFrom?: string;
 }
 
 export interface Transition {
@@ -76,6 +84,21 @@ export interface Comment {
   author: User | null;
   created: string;
   bodyHtml: string;
+}
+
+export interface ExtraField {
+  id: string;
+  name: string;
+  type: string | null;
+  text: string | null;
+  html: string | null;
+}
+
+export interface HistoryEntry {
+  id: string;
+  author: User | null;
+  created: string;
+  items: { field: string; from: string | null; to: string | null }[];
 }
 
 export interface IssueDetail extends Issue {
@@ -99,4 +122,12 @@ export interface IssuePatch {
   labels?: string[];
   parent?: string | null;
   assignee?: string | null;
+  /** priority id */
+  priority?: string;
+}
+
+export interface Priority {
+  id: string;
+  name: string;
+  icon?: string;
 }
