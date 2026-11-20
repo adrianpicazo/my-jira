@@ -211,6 +211,12 @@ export const Icon = {
       <path d="M2.5 3.5h11v9h-11zM5 8h6M9.5 6.5 11 8l-1.5 1.5" {...stroke} />
     </svg>
   ),
+  Users: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <circle cx="6" cy="5.5" r="2.5" {...stroke} />
+      <path d="M1.5 13.5c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4M10.5 3.2a2.3 2.3 0 0 1 0 4.6M12 9.8c1.5.5 2.5 1.8 2.5 3.7" {...stroke} />
+    </svg>
+  ),
   FoldAll: ({ size = 14 }: IconProps) => (
     <svg width={size} height={size} viewBox="0 0 16 16">
       <path d="M5 2.5 8 5.5l3-3M5 13.5l3-3 3 3" {...stroke} />

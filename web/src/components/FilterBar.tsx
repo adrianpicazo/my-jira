@@ -2,6 +2,8 @@ import type { RefObject } from 'react';
 import { useApp } from '../hooks';
 import type { Issue, User } from '../types';
 import { Avatar, Icon } from './icons';
+import { Menu } from './Menu';
+import { Popover } from './Popover';
 
 export interface Filters {
   q: string;
@@ -44,6 +46,7 @@ export function FilterBar({
       assignees: filters.assignees.includes(id) ? filters.assignees.filter((a) => a !== id) : [...filters.assignees, id],
     });
   const mine = filters.assignees.length === 1 && filters.assignees[0] === me.accountId;
+  const picked = users.filter((u) => filters.assignees.includes(u.accountId));
   return (
     <div className="filterbar">
       <label className="search">
@@ -60,21 +63,41 @@ export function FilterBar({
         <Avatar user={me} size={16} /> Mías
       </button>
       {users.length > 0 && (
-        <div className="facepile">
-          {users.map((u) => (
-            <button
-              key={u.accountId}
-              className={`face${filters.assignees.includes(u.accountId) ? ' on' : ''}`}
-              title={u.displayName}
-              onClick={() => toggle(u.accountId)}
-            >
-              <Avatar user={u} size={22} />
+        <Popover
+          width={260}
+          renderTrigger={(p) => (
+            <button className={`btn btn-ghost${filters.assignees.length && !mine ? ' on' : ''}`} {...p}>
+              {picked.length > 0 && !mine ? (
+                <span className="mini-faces">
+                  {picked.slice(0, 3).map((u) => (
+                    <Avatar key={u.accountId} user={u} size={16} />
+                  ))}
+                </span>
+              ) : (
+                <Icon.Users />
+              )}{' '}
+              Personas
+              {filters.assignees.length > 0 && !mine && <span className="badge">{filters.assignees.length}</span>}
             </button>
-          ))}
-          <button className={`face${filters.assignees.includes('') ? ' on' : ''}`} title="Sin asignar" onClick={() => toggle('')}>
-            <Avatar user={null} size={22} />
-          </button>
-        </div>
+          )}
+        >
+          {() => (
+            <Menu
+              placeholder="Filtrar por persona…"
+              items={[
+                ...users.map((u) => ({
+                  id: u.accountId,
+                  label: u.displayName,
+                  icon: <Avatar user={u} size={18} />,
+                  selected: filters.assignees.includes(u.accountId),
+                })),
+                { id: '', label: 'Sin asignar', icon: <Avatar user={null} size={18} />, selected: filters.assignees.includes('') },
+                ...(filters.assignees.length ? [{ id: '*', label: 'Todas las personas', icon: <Icon.Refresh size={13} /> }] : []),
+              ]}
+              onSelect={(i) => (i.id === '*' ? onChange({ ...filters, assignees: [] }) : toggle(i.id))}
+            />
+          )}
+        </Popover>
       )}
       {(filters.q || filters.assignees.length > 0) && (
         <button className="btn btn-ghost" onClick={() => onChange(emptyFilters)}>

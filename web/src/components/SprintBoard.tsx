@@ -227,6 +227,8 @@ export function SubtaskStats({ subtasks, columns }: { subtasks: Issue[]; columns
  * swimlane are separate grids that must line up.
  */
 const MIN_WIDTH = 80;
+/** Narrowest a regular column gets before the board scrolls sideways: six fit in a ~1400px window. */
+const COL_MIN = 220;
 
 /** A minimized column's cell: how many cards it holds, their titles on hover, expand on click. */
 function MinimizedCell({ issues, alignRight, onExpand }: { issues: Issue[]; alignRight: boolean; onExpand: () => void }) {
@@ -489,7 +491,7 @@ export function SprintBoard({
 
   const isFolded = (i: Issue) => !!i.issuetype?.subtask && !!i.parent && collapsedStories.includes(i.parent.key);
   const isMin = (c: Column) => minimized.includes(colKey(c));
-  const grid: CSSProperties = { gridTemplateColumns: columns.map((c) => (isMin(c) ? `${MIN_WIDTH}px` : 'minmax(260px, 1fr)')).join(' ') };
+  const grid: CSSProperties = { gridTemplateColumns: columns.map((c) => (isMin(c) ? `${MIN_WIDTH}px` : `minmax(${COL_MIN}px, 1fr)`)).join(' ') };
 
   /* ---------- drag & drop ---------- */
 
@@ -610,7 +612,7 @@ export function SprintBoard({
 
   return (
     <div className="board" ref={boardRef}>
-      <div className="board-inner" style={{ minWidth: columns.reduce((w, c) => w + (isMin(c) ? MIN_WIDTH + 8 : 268), 24) }}>
+      <div className="board-inner" style={{ minWidth: columns.reduce((w, c) => w + (isMin(c) ? MIN_WIDTH : COL_MIN) + 8, 24) }}>
         <div className="board-cols" style={grid}>
           {columns.map((c, idx) => {
             const n = issues.filter((i) => !isFolded(i) && c.statusIds.includes(i.status?.id ?? '')).length;

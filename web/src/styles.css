@@ -406,6 +406,17 @@ code {
   border-color: var(--accent);
   z-index: 2;
 }
+/* Selected people, overlapping, inside the Personas button */
+.mini-faces {
+  display: flex;
+}
+.mini-faces > * + * {
+  margin-left: -5px;
+}
+.mini-faces > * {
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--bg);
+}
 
 .select {
   display: flex;
