@@ -11,6 +11,7 @@ import { GoToIssue } from './components/GoToIssue';
 import { IssuePanel } from './components/IssuePanel';
 import { Menu } from './components/Menu';
 import { Popover } from './components/Popover';
+import { SidebarContext } from './components/SidebarToggle';
 import { SprintView } from './components/SprintView';
 
 function Toasts() {
@@ -127,7 +128,7 @@ function Setup({ message }: { message: string }) {
   );
 }
 
-function Sidebar({ me, board, boards, onBoard, view, onView, onOpen, onHide }: { me: Me; board: Board; boards: Board[]; onBoard: (id: number) => void; view: View; onView: (v: View) => void; onOpen: (key: string) => void; onHide: () => void }) {
+function Sidebar({ me, board, boards, onBoard, view, onView, onOpen }: { me: Me; board: Board; boards: Board[]; onBoard: (id: number) => void; view: View; onView: (v: View) => void; onOpen: (key: string) => void }) {
   const qc = useQueryClient();
   const fetching = useIsFetching();
   return (
@@ -175,9 +176,6 @@ function Sidebar({ me, board, boards, onBoard, view, onView, onOpen, onHide }: {
             <Icon.Logout />
           </button>
         )}
-        <button className="icon-btn" title="Ocultar barra lateral ( [ )" onClick={onHide}>
-          <Icon.Sidebar />
-        </button>
       </div>
     </nav>
   );
@@ -267,18 +265,15 @@ export function App() {
 
   return (
     <AppContext.Provider value={ctx}>
-      <div className={`app${sidebarHidden ? ' sidebar-hidden' : ''}`}>
-        {/* Hidden with CSS rather than unmounted, so the ⌘K listener in GoToIssue stays alive. */}
-        <Sidebar me={meQ.data} board={board} boards={boards} onBoard={setBoardId} view={view} onView={(v) => navigate(v, null)} onOpen={openIssue} onHide={() => setSidebarHidden(true)} />
-        {sidebarHidden && (
-          <button className="icon-btn sidebar-show" title="Mostrar barra lateral ( [ )" onClick={() => setSidebarHidden(false)}>
-            <Icon.Sidebar />
-          </button>
-        )}
-        <div className="main">{view === 'sprint' ? <SprintView /> : <BacklogView />}</div>
-        {issue && <IssuePanel key={issue} issueKey={issue} onClose={closeIssue} onOpen={openIssue} />}
-        <Toasts />
-      </div>
+      <SidebarContext.Provider value={{ hidden: sidebarHidden, toggle: () => setSidebarHidden((h) => !h) }}>
+        <div className={`app${sidebarHidden ? ' sidebar-hidden' : ''}`}>
+          {/* Hidden with CSS rather than unmounted, so the ⌘K listener in GoToIssue stays alive. */}
+          <Sidebar me={meQ.data} board={board} boards={boards} onBoard={setBoardId} view={view} onView={(v) => navigate(v, null)} onOpen={openIssue} />
+          <div className="main">{view === 'sprint' ? <SprintView /> : <BacklogView />}</div>
+          {issue && <IssuePanel key={issue} issueKey={issue} onClose={closeIssue} onOpen={openIssue} />}
+          <Toasts />
+        </div>
+      </SidebarContext.Provider>
     </AppContext.Provider>
   );
 }

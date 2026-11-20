@@ -10,6 +10,7 @@ import { BacklogMenu, rankMoves, type MenuState } from './CardMenu';
 import { IssueRow } from './IssueRow';
 import { ContextMenu } from './ContextMenu';
 import { Menu } from './Menu';
+import { SidebarToggle } from './SidebarToggle';
 import { SprintFilter } from './SprintFilter';
 import { Progress } from './Progress';
 import { StatusFilter, statusesOf } from './StatusFilter';
@@ -304,6 +305,7 @@ export function BacklogView() {
     <div className="view">
       <header className="view-header">
         <div className="view-title">
+          <SidebarToggle />
           <h1>Backlog</h1>
           <span className="muted">{visible.length} sprints</span>
         </div>

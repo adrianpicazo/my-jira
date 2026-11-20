@@ -246,16 +246,6 @@ code {
 .sidebar-hidden .sidebar {
   display: none;
 }
-/* Sits in the view header's left padding, vertically centred in its 48px. */
-.sidebar-show {
-  position: fixed;
-  top: 11px;
-  left: 12px;
-  z-index: 6;
-}
-.sidebar-hidden .view-header {
-  padding-left: 46px;
-}
 
 /* ---------- View ---------- */
 
@@ -281,6 +271,22 @@ code {
   gap: 12px;
   flex: 1;
   min-width: 0;
+  /* The header stays one 48px line (group headers stick right under it): when narrow,
+     the dates give way first, then the rest is clipped instead of widening the page. */
+  overflow: hidden;
+}
+.view-title > * {
+  flex: none;
+}
+.view-title > .muted {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.view-title > .icon-btn {
+  margin-right: -6px;
 }
 .view-title h1 {
   font-size: 14px;
@@ -319,6 +325,7 @@ code {
 
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 8px 20px;
@@ -329,7 +336,8 @@ code {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
+  /* Basis auto, not 0: when narrow, the toolbar's other controls wrap to the next line first. */
+  flex: 1 1 auto;
   flex-wrap: wrap;
 }
 

@@ -11,6 +11,7 @@ import { Avatar, Icon, StatusIcon } from './icons';
 import { IssueRow } from './IssueRow';
 import { applyLaneOrder, useLaneDrag } from './useLaneDrag';
 import { AssigneePicker, StatusPicker } from './Pickers';
+import { SidebarToggle } from './SidebarToggle';
 import { SprintFilter } from './SprintFilter';
 import { StatusFilter, statusesOf } from './StatusFilter';
 import { Progress } from './Progress';
@@ -196,6 +197,7 @@ export function SprintView() {
     <div className={`view${layout === 'board' ? ' view-board' : ''}`}>
       <header className="view-header">
         <div className="view-title">
+          <SidebarToggle />
           {active.length > 1 ? (
             <div className="tabs">
               {active.map((s) => (
