@@ -20,7 +20,8 @@ import { useSlashFocus } from './useSlashFocus';
 
 const REFRESH_MS = 30_000;
 
-type GroupBy = 'epic' | 'status' | 'assignee' | 'none';
+/** 'story' is the board-only Épica › Tarea: epic swimlanes with a band per task. */
+type GroupBy = 'epic' | 'story' | 'status' | 'assignee' | 'none';
 
 export interface Group {
   id: string;
@@ -28,7 +29,7 @@ export interface Group {
   issues: Issue[];
 }
 
-const GROUP_LABELS: Record<GroupBy, string> = { epic: 'Épica', status: 'Estado', assignee: 'Responsable', none: 'Ninguno' };
+const GROUP_LABELS: Record<GroupBy, string> = { epic: 'Épica', story: 'Épica › Tarea', status: 'Estado', assignee: 'Responsable', none: 'Ninguno' };
 
 function epicOf(issue: Issue, byKey: Map<string, Issue>): ParentRef | null {
   if (!issue.parent) return null;
@@ -102,8 +103,9 @@ export function SprintView() {
   const sprint = active.find((s) => s.id === selectedId) ?? active[0];
   const [groupBy, setGroupBy] = useLocalStorage<GroupBy>('groupBy', 'epic');
   const [layout, setLayout] = useLocalStorage<'list' | 'board'>('layout', 'list');
-  // In the board, status is already the column axis.
-  const laneBy: GroupBy = layout === 'board' && groupBy === 'status' ? 'none' : groupBy;
+  // In the board, status is already the column axis; task bands only exist on the board.
+  const mode: GroupBy = layout === 'board' ? (groupBy === 'status' ? 'none' : groupBy) : groupBy === 'story' ? 'epic' : groupBy;
+  const laneBy: Exclude<GroupBy, 'story'> = mode === 'story' ? 'epic' : mode;
   const [filters, setFilters] = useLocalStorage<Filters>(`filters:sprint:${board.id}`, emptyFilters);
   const [collapsedList, setCollapsedList] = useLocalStorage<string[]>(`collapsedLanes:${board.id}`, []);
   const collapsed = useMemo(() => new Set(collapsedList), [collapsedList]);
@@ -273,9 +275,9 @@ export function SprintView() {
         </div>
         <label className="select">
           <span className="muted">{layout === 'board' ? 'Swimlanes' : 'Agrupar'}</span>
-          <select value={laneBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)}>
+          <select value={mode} onChange={(e) => setGroupBy(e.target.value as GroupBy)}>
             {Object.entries(GROUP_LABELS)
-              .filter(([v]) => layout === 'list' || v !== 'status')
+              .filter(([v]) => (layout === 'list' ? v !== 'story' : v !== 'status'))
               .map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
@@ -304,6 +306,7 @@ export function SprintView() {
             collapsedStories={collapsedStories}
             onToggleStory={toggleStory}
             laneDrag={laneDrag}
+            storyBands={mode === 'story'}
           />
         )
       ) : (
@@ -322,7 +325,7 @@ export function SprintView() {
               </div>
               {!collapsed.has(g.id) &&
                 g.issues.map((i) => (
-                  <IssueRow key={i.key} issue={i} preview showParent={groupBy !== 'epic'} onContextMenu={(e) => openMenu(e, i)} />
+                  <IssueRow key={i.key} issue={i} preview showParent={laneBy !== 'epic'} onContextMenu={(e) => openMenu(e, i)} />
                 ))}
             </section>
           ),
