@@ -1240,6 +1240,14 @@ code {
   background: var(--bg);
   padding: 10px 0 8px;
 }
+/* Sticky headers reach over .board-inner's side padding, so nothing scrolled beneath (like a
+   band's outline) shows at their edges. Same content width, so the columns still line up. */
+.board-cols,
+.lane-head {
+  margin: 0 -12px;
+  padding-left: 12px;
+  padding-right: 12px;
+}
 .board-col-head {
   display: flex;
   align-items: center;
