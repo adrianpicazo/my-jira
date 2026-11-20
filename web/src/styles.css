@@ -1370,24 +1370,14 @@ code {
 .lane-cells {
   padding: 8px 0 12px;
 }
-/* Épica › Tarea: a task's band, tinted and outlined in its type colour. The ring is a shadow
-   so the band's columns stay exactly as wide as the header's. */
+/* Épica › Tarea: a task's band, a dashed outline around its grey status cells. An outline, not a
+   border, so the band's columns stay exactly as wide as the header's. */
 .lane-cells.story-band {
-  padding: 2px 0;
-  margin: 16px 0;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--type) 6%, var(--bg));
-  box-shadow:
-    0 0 0 5px color-mix(in srgb, var(--type) 6%, var(--bg)),
-    0 0 0 6px color-mix(in srgb, var(--type) 45%, transparent);
-}
-.story-band .cell {
-  min-height: 0;
   padding: 0;
-  background: none;
-}
-.story-band .cell.over {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  margin: 14px 0;
+  border-radius: 8px;
+  outline: 1px dashed color-mix(in srgb, var(--muted) 55%, transparent);
+  outline-offset: 5px;
 }
 /* Away from the task's card there's nothing to indent under. */
 .unit-bare .card-sub {

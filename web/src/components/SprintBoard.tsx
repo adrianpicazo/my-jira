@@ -701,11 +701,7 @@ export function SprintBoard({
                 </div>
               )}
               {rows.map((row) => (
-                <div
-                  key={row.id}
-                  className={`lane-cells${row.band ? ' story-band' : ''}`}
-                  style={row.band ? ({ ...grid, '--type': typeColor(row.band.card?.issuetype ?? row.band.parent.issuetype) } as CSSProperties) : grid}
-                >
+                <div key={row.id} className={`lane-cells${row.band ? ' story-band' : ''}`} style={grid}>
                   {cells(row.issues).map((list, colIdx) => {
                     const cellId = `${row.id}:${colIdx}`;
                     const col = columns[colIdx]!;
