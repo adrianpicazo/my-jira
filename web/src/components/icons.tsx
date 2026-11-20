@@ -211,6 +211,38 @@ export const Icon = {
       <path d="M2.5 3.5h11v9h-11zM5 8h6M9.5 6.5 11 8l-1.5 1.5" {...stroke} />
     </svg>
   ),
+  FoldAll: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <path d="M5 2.5 8 5.5l3-3M5 13.5l3-3 3 3" {...stroke} />
+    </svg>
+  ),
+  UnfoldAll: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <path d="M5 5.5 8 2.5l3 3M5 10.5l3 3 3-3" {...stroke} />
+    </svg>
+  ),
+  Subtasks: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <path d="M2.5 3.5h11M7.5 8h6M7.5 12.5h6M4 5v7.5h2M4 8h2" {...stroke} />
+    </svg>
+  ),
+  List: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01" {...stroke} />
+    </svg>
+  ),
+  Board: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <rect x="2.5" y="3" width="11" height="10" rx="1.5" {...stroke} />
+      <path d="M6.2 3v10M9.8 3v10" {...stroke} />
+    </svg>
+  ),
+  Lanes: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <rect x="2.5" y="2.5" width="11" height="4.5" rx="1" {...stroke} />
+      <rect x="2.5" y="9" width="11" height="4.5" rx="1" {...stroke} />
+    </svg>
+  ),
   Sidebar: ({ size = 14 }: IconProps) => (
     <svg width={size} height={size} viewBox="0 0 16 16">
       <path d="M6 3.5v9M2.5 3.5h11v9h-11z" {...stroke} />

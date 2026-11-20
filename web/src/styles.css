@@ -315,6 +315,11 @@ code {
   background: var(--active);
   color: var(--text);
 }
+.tab-icon {
+  display: grid;
+  place-items: center;
+  padding: 4px 8px;
+}
 
 .sprint-goal {
   padding: 8px 20px;
@@ -436,6 +441,11 @@ code {
 .btn-ghost:hover {
   background: var(--hover);
   color: var(--text);
+}
+.btn-icon {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
 }
 .btn-ghost.on {
   background: color-mix(in srgb, var(--accent) 18%, transparent);

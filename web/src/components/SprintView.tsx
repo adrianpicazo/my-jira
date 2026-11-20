@@ -10,7 +10,9 @@ import { applyFilters, assigneesOf, emptyFilters, FilterBar, type Filters } from
 import { Avatar, Icon, StatusIcon } from './icons';
 import { IssueRow } from './IssueRow';
 import { applyLaneOrder, useLaneDrag } from './useLaneDrag';
+import { Menu } from './Menu';
 import { AssigneePicker, StatusPicker } from './Pickers';
+import { Popover } from './Popover';
 import { SidebarToggle } from './SidebarToggle';
 import { SprintFilter } from './SprintFilter';
 import { StatusFilter, statusesOf } from './StatusFilter';
@@ -244,16 +246,22 @@ export function SprintView() {
           </button>
         )}
         {laneBy !== 'none' && groups.length > 0 && (
-          <button className="btn btn-ghost" onClick={() => setCollapsed(allGroupsFolded ? new Set() : new Set(groups.map((g) => g.id)))}>
-            <Icon.Chevron open={!allGroupsFolded} />{' '}
-            {allGroupsFolded
-              ? layout === 'board' ? 'Desplegar swimlanes' : 'Desplegar grupos'
-              : layout === 'board' ? 'Plegar swimlanes' : 'Plegar grupos'}
+          <button
+            className="btn btn-ghost btn-icon"
+            title={
+              allGroupsFolded
+                ? layout === 'board' ? 'Desplegar swimlanes' : 'Desplegar grupos'
+                : layout === 'board' ? 'Plegar swimlanes' : 'Plegar grupos'
+            }
+            onClick={() => setCollapsed(allGroupsFolded ? new Set() : new Set(groups.map((g) => g.id)))}
+          >
+            {allGroupsFolded ? <Icon.UnfoldAll /> : <Icon.FoldAll />}
           </button>
         )}
         {layout === 'board' && storiesWithSubtasks.length > 0 && (
           <button
-            className="btn btn-ghost"
+            className={`btn btn-ghost btn-icon${allStoriesFolded ? ' on' : ''}`}
+            title={allStoriesFolded ? 'Desplegar subtareas' : 'Plegar subtareas'}
             onClick={() =>
               setCollapsedStories(
                 allStoriesFolded
@@ -262,29 +270,39 @@ export function SprintView() {
               )
             }
           >
-            <Icon.Chevron open={!allStoriesFolded} /> {allStoriesFolded ? 'Desplegar subtareas' : 'Plegar subtareas'}
+            <Icon.Subtasks />
           </button>
         )}
         <div className="tabs">
-          <button className={`tab${layout === 'list' ? ' on' : ''}`} onClick={() => setLayout('list')}>
-            Lista
+          <button className={`tab tab-icon${layout === 'list' ? ' on' : ''}`} title="Lista" aria-label="Lista" onClick={() => setLayout('list')}>
+            <Icon.List />
           </button>
-          <button className={`tab${layout === 'board' ? ' on' : ''}`} onClick={() => setLayout('board')}>
-            Tablero
+          <button className={`tab tab-icon${layout === 'board' ? ' on' : ''}`} title="Tablero" aria-label="Tablero" onClick={() => setLayout('board')}>
+            <Icon.Board />
           </button>
         </div>
-        <label className="select">
-          <span className="muted">{layout === 'board' ? 'Swimlanes' : 'Agrupar'}</span>
-          <select value={mode} onChange={(e) => setGroupBy(e.target.value as GroupBy)}>
-            {Object.entries(GROUP_LABELS)
-              .filter(([v]) => (layout === 'list' ? v !== 'story' : v !== 'status'))
-              .map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Popover
+          width={200}
+          align="end"
+          renderTrigger={(p) => (
+            <button className="btn btn-ghost" title={layout === 'board' ? 'Swimlanes' : 'Agrupar por'} {...p}>
+              <Icon.Lanes /> {GROUP_LABELS[mode]}
+            </button>
+          )}
+        >
+          {(close) => (
+            <Menu
+              placeholder={layout === 'board' ? 'Swimlanes…' : 'Agrupar por…'}
+              items={Object.entries(GROUP_LABELS)
+                .filter(([v]) => (layout === 'list' ? v !== 'story' : v !== 'status'))
+                .map(([v, l]) => ({ id: v, label: l, selected: v === mode }))}
+              onSelect={(i) => {
+                setGroupBy(i.id as GroupBy);
+                close();
+              }}
+            />
+          )}
+        </Popover>
       </div>
 
       {!sprint && <div className="empty">No hay sprints activos visibles. Revisa el filtro de sprints.</div>}
