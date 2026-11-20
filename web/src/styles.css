@@ -1403,7 +1403,8 @@ code {
    border, so the band's columns stay exactly as wide as the header's. */
 .lane-cells.story-band {
   padding: 0;
-  margin: 14px 0;
+  /* With the 5px outline offset, this leaves 12px between bands. */
+  margin: 22px 0;
   border-radius: 8px;
   outline: 1px dashed color-mix(in srgb, var(--muted) 55%, transparent);
   outline-offset: 5px;
