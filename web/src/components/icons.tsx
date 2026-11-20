@@ -211,6 +211,11 @@ export const Icon = {
       <path d="M2.5 3.5h11v9h-11zM5 8h6M9.5 6.5 11 8l-1.5 1.5" {...stroke} />
     </svg>
   ),
+  Sidebar: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <path d="M6 3.5v9M2.5 3.5h11v9h-11z" {...stroke} />
+    </svg>
+  ),
   Refresh: ({ size = 14 }: IconProps) => (
     <svg width={size} height={size} viewBox="0 0 16 16">
       <path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v2.5h-2.5" {...stroke} />

@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from './api';
 import { AppContext, useLocalStorage, useRoute, type AppCtx, type View } from './hooks';
@@ -126,7 +127,7 @@ function Setup({ message }: { message: string }) {
   );
 }
 
-function Sidebar({ me, board, boards, onBoard, view, onView, onOpen }: { me: Me; board: Board; boards: Board[]; onBoard: (id: number) => void; view: View; onView: (v: View) => void; onOpen: (key: string) => void }) {
+function Sidebar({ me, board, boards, onBoard, view, onView, onOpen, onHide }: { me: Me; board: Board; boards: Board[]; onBoard: (id: number) => void; view: View; onView: (v: View) => void; onOpen: (key: string) => void; onHide: () => void }) {
   const qc = useQueryClient();
   const fetching = useIsFetching();
   return (
@@ -174,6 +175,9 @@ function Sidebar({ me, board, boards, onBoard, view, onView, onOpen }: { me: Me;
             <Icon.Logout />
           </button>
         )}
+        <button className="icon-btn" title="Ocultar barra lateral ( [ )" onClick={onHide}>
+          <Icon.Sidebar />
+        </button>
       </div>
     </nav>
   );
@@ -223,6 +227,24 @@ export function App() {
   const openIssue = useCallback((key: string) => navigate(view, key), [navigate, view]);
   const closeIssue = useCallback(() => navigate(view, null), [navigate, view]);
 
+  const [sidebarHidden, setSidebarHidden] = useLocalStorage('sidebarHidden', false);
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      // ⌘K focuses the go-to box in the sidebar: show it first. Capture phase, so this runs before that handler.
+      if (sidebarHidden && e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey)) {
+        flushSync(() => setSidebarHidden(false));
+        return;
+      }
+      const t = e.target as HTMLElement;
+      // Also by physical key: on a Spanish layout that key types "`" and "[" needs ⌥.
+      if ((e.key !== '[' && e.code !== 'BracketLeft') || e.metaKey || e.ctrlKey || t.closest('input, textarea, [contenteditable]')) return;
+      e.preventDefault();
+      setSidebarHidden((h) => !h);
+    };
+    window.addEventListener('keydown', on, true);
+    return () => window.removeEventListener('keydown', on, true);
+  }, [sidebarHidden, setSidebarHidden]);
+
   if (meQ.error instanceof ApiError && meQ.error.login) return <Login message={meQ.error.message} />;
   if (meQ.error) return <Setup message={(meQ.error as Error).message} />;
   if (boardsQ.error) return <Setup message={(boardsQ.error as Error).message} />;
@@ -245,8 +267,14 @@ export function App() {
 
   return (
     <AppContext.Provider value={ctx}>
-      <div className="app">
-        <Sidebar me={meQ.data} board={board} boards={boards} onBoard={setBoardId} view={view} onView={(v) => navigate(v, null)} onOpen={openIssue} />
+      <div className={`app${sidebarHidden ? ' sidebar-hidden' : ''}`}>
+        {/* Hidden with CSS rather than unmounted, so the ⌘K listener in GoToIssue stays alive. */}
+        <Sidebar me={meQ.data} board={board} boards={boards} onBoard={setBoardId} view={view} onView={(v) => navigate(v, null)} onOpen={openIssue} onHide={() => setSidebarHidden(true)} />
+        {sidebarHidden && (
+          <button className="icon-btn sidebar-show" title="Mostrar barra lateral ( [ )" onClick={() => setSidebarHidden(false)}>
+            <Icon.Sidebar />
+          </button>
+        )}
         <div className="main">{view === 'sprint' ? <SprintView /> : <BacklogView />}</div>
         {issue && <IssuePanel key={issue} issueKey={issue} onClose={closeIssue} onOpen={openIssue} />}
         <Toasts />
