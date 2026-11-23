@@ -92,8 +92,37 @@ interface DropAt {
  */
 interface Unit {
   id: string;
-  head: { kind: 'card'; issue: Issue } | { kind: 'placeholder'; parent: ParentRef };
+  /** 'none': subtasks in a task's band, away from the column the task heads. */
+  head: { kind: 'card'; issue: Issue } | { kind: 'placeholder'; parent: ParentRef } | { kind: 'none'; key: string };
   subs: Issue[];
+}
+
+const storyKeyOf = (u: Unit) => (u.head.kind === 'card' ? u.head.issue.key : u.head.kind === 'placeholder' ? u.head.parent.key : u.head.key);
+
+/** Épica › Tarea: a task and its subtasks share a band that spans every column. */
+interface Band {
+  key: string;
+  /** The task's card, unless it's filtered out or outside the sprint (then a placeholder heads the band). */
+  card: Issue | undefined;
+  parent: ParentRef;
+  /** Column of the task's status, where it heads the band; -1 if it has none. */
+  col: number;
+}
+
+/** A swimlane's grid row: the whole lane, or in Épica › Tarea one band per task plus a row for the rest. */
+interface Row {
+  id: string;
+  issues: Issue[];
+  band?: Band;
+}
+
+/** In a task's band the task heads the column of its status; the other columns hold just its subtasks. */
+function bandUnits(band: Band, list: Issue[], colIdx: number): Unit[] {
+  const subs = list.filter((i) => i.key !== band.key);
+  if (colIdx === band.col) {
+    return [{ id: band.key, head: band.card ? { kind: 'card', issue: band.card } : { kind: 'placeholder', parent: band.parent }, subs }];
+  }
+  return subs.length ? [{ id: `${band.key}:${colIdx}`, head: { kind: 'none', key: band.key }, subs }] : [];
 }
 
 function arrange(list: Issue[], rankOf: (key: string) => number): Unit[] {
@@ -198,6 +227,8 @@ export function SubtaskStats({ subtasks, columns }: { subtasks: Issue[]; columns
  * swimlane are separate grids that must line up.
  */
 const MIN_WIDTH = 80;
+/** Narrowest a regular column gets before the board scrolls sideways: six fit in a ~1400px window. */
+const COL_MIN = 220;
 
 /** A minimized column's cell: how many cards it holds, their titles on hover, expand on click. */
 function MinimizedCell({ issues, alignRight, onExpand }: { issues: Issue[]; alignRight: boolean; onExpand: () => void }) {
@@ -364,6 +395,7 @@ export function SprintBoard({
   onToggleStory,
   currentSprintId,
   laneDrag,
+  storyBands = false,
 }: {
   groups: Group[];
   columns: Column[] | undefined;
@@ -377,6 +409,8 @@ export function SprintBoard({
   onToggleStory: (key: string) => void;
   currentSprintId?: number;
   laneDrag: LaneDrag;
+  /** Épica › Tarea: each task with subtasks gets its own band inside the lane. */
+  storyBands?: boolean;
 }) {
   const qc = useQueryClient();
   const { transition, rank } = useIssueActions();
@@ -457,7 +491,7 @@ export function SprintBoard({
 
   const isFolded = (i: Issue) => !!i.issuetype?.subtask && !!i.parent && collapsedStories.includes(i.parent.key);
   const isMin = (c: Column) => minimized.includes(colKey(c));
-  const grid: CSSProperties = { gridTemplateColumns: columns.map((c) => (isMin(c) ? `${MIN_WIDTH}px` : 'minmax(260px, 1fr)')).join(' ') };
+  const grid: CSSProperties = { gridTemplateColumns: columns.map((c) => (isMin(c) ? `${MIN_WIDTH}px` : `minmax(${COL_MIN}px, 1fr)`)).join(' ') };
 
   /* ---------- drag & drop ---------- */
 
@@ -551,9 +585,25 @@ export function SprintBoard({
     setDropAt({ id: sub.key, pos: dropPos(e), target: sub.key, cellId });
   };
 
-  const cells = (group: Group) => {
+  const rowsOf = (g: Group): Row[] => {
+    if (!storyBands) return [{ id: g.id, issues: g.issues }];
+    const subs = new Map<string, Issue[]>();
+    for (const i of g.issues) if (i.issuetype?.subtask && i.parent) subs.set(i.parent.key, [...(subs.get(i.parent.key) ?? []), i]);
+    const bands = [...subs].map(([key, children]): Row => {
+      const card = g.issues.find((i) => i.key === key);
+      const parent = children[0]!.parent!;
+      const col = colOf.get((card ?? parent).status?.id ?? '') ?? colOf.get(children[0]!.status?.id ?? '') ?? -1;
+      return { id: `${g.id}:${key}`, issues: card ? [card, ...children] : children, band: { key, card, parent, col } };
+    });
+    bands.sort((a, b) => rankOf(a.band!.key) - rankOf(b.band!.key));
+    const inBands = new Set(bands.flatMap((r) => r.issues.map((i) => i.key)));
+    const rest = g.issues.filter((i) => !inBands.has(i.key));
+    return rest.length ? [...bands, { id: g.id, issues: rest }] : bands;
+  };
+
+  const cells = (list: Issue[]) => {
     const perCol: Issue[][] = columns.map(() => []);
-    for (const i of group.issues) {
+    for (const i of list) {
       const idx = colOf.get(i.status?.id ?? '');
       if (idx !== undefined) perCol[idx]!.push(i);
     }
@@ -562,7 +612,7 @@ export function SprintBoard({
 
   return (
     <div className="board" ref={boardRef}>
-      <div className="board-inner" style={{ minWidth: columns.reduce((w, c) => w + (isMin(c) ? MIN_WIDTH + 8 : 268), 24) }}>
+      <div className="board-inner" style={{ minWidth: columns.reduce((w, c) => w + (isMin(c) ? MIN_WIDTH : COL_MIN) + 8, 24) }}>
         <div className="board-cols" style={grid}>
           {columns.map((c, idx) => {
             const n = issues.filter((i) => !isFolded(i) && c.statusIds.includes(i.status?.id ?? '')).length;
@@ -639,6 +689,8 @@ export function SprintBoard({
         </div>
         {groups.map((g) => {
           const open = !collapsed.has(g.id);
+          const rows = open ? rowsOf(g) : [];
+          const bandKeys = rows.flatMap((r) => (r.band ? [r.band.key] : []));
           return (
             <section key={g.id} className="lane">
               {g.header !== null && (
@@ -650,10 +702,10 @@ export function SprintBoard({
                   </div>
                 </div>
               )}
-              {open && (
-                <div className="lane-cells" style={grid}>
-                  {cells(g).map((list, colIdx) => {
-                    const cellId = `${g.id}:${colIdx}`;
+              {rows.map((row) => (
+                <div key={row.id} className={`lane-cells${row.band ? ' story-band' : ''}`} style={grid}>
+                  {cells(row.issues).map((list, colIdx) => {
+                    const cellId = `${row.id}:${colIdx}`;
                     const col = columns[colIdx]!;
                     const shown = list.filter((i) => !isFolded(i));
                     return (
@@ -664,7 +716,7 @@ export function SprintBoard({
                         onDragOver={(e) => {
                           const d = drag.current;
                           // Other columns of the same swimlane accept cards and subtasks as a status change.
-                          if (!d || d.kind === 'placeholder' || d.colIdx === colIdx || d.laneId !== g.id) return;
+                          if (!d || d.kind === 'placeholder' || d.colIdx === colIdx || d.laneId !== row.id) return;
                           e.preventDefault();
                           setOverCell(cellId);
                         }}
@@ -676,7 +728,7 @@ export function SprintBoard({
                           endDrag();
                           if (!d) return;
                           if (at && at.cellId === cellId) rank(d.rankKey, at.pos, at.target);
-                          else if (d.colIdx !== colIdx && d.kind !== 'placeholder' && d.laneId === g.id) transitionTo(d.key, colIdx);
+                          else if (d.colIdx !== colIdx && d.kind !== 'placeholder' && d.laneId === row.id) transitionTo(d.key, colIdx);
                         }}
                       >
                         {isMin(col) ? (
@@ -688,19 +740,21 @@ export function SprintBoard({
                             />
                           )
                         ) : (() => {
-                          const units = arrange(list, rankOf);
-                          const unitKeys = units.map((u) => (u.head.kind === 'card' ? u.head.issue.key : u.head.parent.key));
+                          const units = row.band ? bandUnits(row.band, list, colIdx) : arrange(list, rankOf);
+                          // A banded task is alone in its cell: it ranks among the lane's other banded tasks.
+                          const unitKeys = row.band ? bandKeys : units.map(storyKeyOf);
                           return units.map((unit) => {
                           const head = unit.head;
-                          const storyKey = head.kind === 'card' ? head.issue.key : head.parent.key;
+                          const storyKey = storyKeyOf(unit);
                           const folded = collapsedStories.includes(storyKey);
+                          if (head.kind === 'none' && folded) return null;
                           const startDrag = (kind: DragState['kind']) => () => {
-                            drag.current = { key: storyKey, kind, rankKey: storyKey, laneId: g.id, cellId, colIdx };
+                            drag.current = { key: storyKey, kind, rankKey: storyKey, laneId: row.id, cellId, colIdx };
                           };
                           return (
                             <div
                               key={unit.id}
-                              className={`unit${dropAt?.id === unit.id ? ` drop-${dropAt.pos}` : ''}`}
+                              className={`unit${head.kind === 'none' ? ' unit-bare' : ''}${dropAt?.id === unit.id ? ` drop-${dropAt.pos}` : ''}`}
                               onDragOver={(e) => unitDragOver(e, unit, storyKey, cellId)}
                             >
                               {head.kind === 'placeholder' ? (
@@ -713,10 +767,10 @@ export function SprintBoard({
                                   onSubtasksHover={(on) => setHoverStory(on ? storyKey : null)}
                                   onHover={setHoverParent}
                                   // Its position comes from the story's rank, which only exists if the story is in the sprint.
-                                  draggable={rankIndex.has(storyKey)}
+                                  draggable={!row.band && rankIndex.has(storyKey)}
                                   drag={{ onDragStart: startDrag('placeholder'), onDragEnd: endDrag }}
                                 />
-                              ) : (
+                              ) : head.kind === 'card' ? (
                                 <Card
                                   issue={head.issue}
                                   showParent={showParent}
@@ -731,7 +785,7 @@ export function SprintBoard({
                                   onDragEnd={endDrag}
                                   onContextMenu={(e) => openMenu(e, head.issue, unitKeys)}
                                 />
-                              )}
+                              ) : null}
                               {!folded &&
                                 unit.subs.map((s) => (
                                   <Card
@@ -745,7 +799,7 @@ export function SprintBoard({
                                     onToggleSubtasks={() => {}}
                                     highlight={hoverStory === storyKey ? 'hover' : flash.has(s.key) ? 'flash' : null}
                                     onDragStart={() => {
-                                      drag.current = { key: s.key, kind: 'subtask', rankKey: s.key, parentKey: s.parent?.key, laneId: g.id, cellId, colIdx };
+                                      drag.current = { key: s.key, kind: 'subtask', rankKey: s.key, parentKey: s.parent?.key, laneId: row.id, cellId, colIdx };
                                     }}
                                     onDragEnd={endDrag}
                                     onDragOver={(e) => subtaskDragOver(e, s, cellId)}
@@ -767,7 +821,7 @@ export function SprintBoard({
                     );
                   })}
                 </div>
-              )}
+              ))}
             </section>
           );
         })}

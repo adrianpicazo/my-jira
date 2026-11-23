@@ -243,6 +243,10 @@ code {
   overflow: auto;
 }
 
+.sidebar-hidden .sidebar {
+  display: none;
+}
+
 /* ---------- View ---------- */
 
 .view {
@@ -267,6 +271,22 @@ code {
   gap: 12px;
   flex: 1;
   min-width: 0;
+  /* The header stays one 48px line (group headers stick right under it): when narrow,
+     the dates give way first, then the rest is clipped instead of widening the page. */
+  overflow: hidden;
+}
+.view-title > * {
+  flex: none;
+}
+.view-title > .muted {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.view-title > .icon-btn {
+  margin-right: -6px;
 }
 .view-title h1 {
   font-size: 14px;
@@ -295,6 +315,11 @@ code {
   background: var(--active);
   color: var(--text);
 }
+.tab-icon {
+  display: grid;
+  place-items: center;
+  padding: 4px 8px;
+}
 
 .sprint-goal {
   padding: 8px 20px;
@@ -305,6 +330,7 @@ code {
 
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 8px 20px;
@@ -315,7 +341,8 @@ code {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
+  /* Basis auto, not 0: when narrow, the toolbar's other controls wrap to the next line first. */
+  flex: 1 1 auto;
   flex-wrap: wrap;
 }
 
@@ -379,6 +406,17 @@ code {
   border-color: var(--accent);
   z-index: 2;
 }
+/* Selected people, overlapping, inside the Personas button */
+.mini-faces {
+  display: flex;
+}
+.mini-faces > * + * {
+  margin-left: -5px;
+}
+.mini-faces > * {
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--bg);
+}
 
 .select {
   display: flex;
@@ -414,6 +452,11 @@ code {
 .btn-ghost:hover {
   background: var(--hover);
   color: var(--text);
+}
+.btn-icon {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
 }
 .btn-ghost.on {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
@@ -1218,6 +1261,14 @@ code {
   background: var(--bg);
   padding: 10px 0 8px;
 }
+/* Sticky headers reach over .board-inner's side padding, so nothing scrolled beneath (like a
+   band's outline) shows at their edges. Same content width, so the columns still line up. */
+.board-cols,
+.lane-head {
+  margin: 0 -12px;
+  padding-left: 12px;
+  padding-right: 12px;
+}
 .board-col-head {
   display: flex;
   align-items: center;
@@ -1347,6 +1398,21 @@ code {
 }
 .lane-cells {
   padding: 8px 0 12px;
+}
+/* Épica › Tarea: a task's band, a dashed outline around its grey status cells. An outline, not a
+   border, so the band's columns stay exactly as wide as the header's. */
+.lane-cells.story-band {
+  padding: 0;
+  /* With the 5px outline offset, this leaves 12px between bands. */
+  margin: 22px 0;
+  border-radius: 8px;
+  outline: 1px dashed color-mix(in srgb, var(--muted) 55%, transparent);
+  outline-offset: 5px;
+}
+/* Away from the task's card there's nothing to indent under. */
+.unit-bare .card-sub {
+  width: auto;
+  align-self: stretch;
 }
 .cell {
   display: flex;

@@ -211,6 +211,49 @@ export const Icon = {
       <path d="M2.5 3.5h11v9h-11zM5 8h6M9.5 6.5 11 8l-1.5 1.5" {...stroke} />
     </svg>
   ),
+  Users: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <circle cx="6" cy="5.5" r="2.5" {...stroke} />
+      <path d="M1.5 13.5c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4M10.5 3.2a2.3 2.3 0 0 1 0 4.6M12 9.8c1.5.5 2.5 1.8 2.5 3.7" {...stroke} />
+    </svg>
+  ),
+  FoldAll: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <path d="M5 2.5 8 5.5l3-3M5 13.5l3-3 3 3" {...stroke} />
+    </svg>
+  ),
+  UnfoldAll: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <path d="M5 5.5 8 2.5l3 3M5 10.5l3 3 3-3" {...stroke} />
+    </svg>
+  ),
+  Subtasks: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <path d="M2.5 3.5h11M7.5 8h6M7.5 12.5h6M4 5v7.5h2M4 8h2" {...stroke} />
+    </svg>
+  ),
+  List: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01" {...stroke} />
+    </svg>
+  ),
+  Board: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <rect x="2.5" y="3" width="11" height="10" rx="1.5" {...stroke} />
+      <path d="M6.2 3v10M9.8 3v10" {...stroke} />
+    </svg>
+  ),
+  Lanes: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <rect x="2.5" y="2.5" width="11" height="4.5" rx="1" {...stroke} />
+      <rect x="2.5" y="9" width="11" height="4.5" rx="1" {...stroke} />
+    </svg>
+  ),
+  Sidebar: ({ size = 14 }: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 16 16">
+      <path d="M6 3.5v9M2.5 3.5h11v9h-11z" {...stroke} />
+    </svg>
+  ),
   Refresh: ({ size = 14 }: IconProps) => (
     <svg width={size} height={size} viewBox="0 0 16 16">
       <path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v2.5h-2.5" {...stroke} />

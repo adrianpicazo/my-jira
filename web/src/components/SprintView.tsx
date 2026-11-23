@@ -10,7 +10,10 @@ import { applyFilters, assigneesOf, emptyFilters, FilterBar, type Filters } from
 import { Avatar, Icon, StatusIcon } from './icons';
 import { IssueRow } from './IssueRow';
 import { applyLaneOrder, useLaneDrag } from './useLaneDrag';
+import { Menu } from './Menu';
 import { AssigneePicker, StatusPicker } from './Pickers';
+import { Popover } from './Popover';
+import { SidebarToggle } from './SidebarToggle';
 import { SprintFilter } from './SprintFilter';
 import { StatusFilter, statusesOf } from './StatusFilter';
 import { Progress } from './Progress';
@@ -19,7 +22,8 @@ import { useSlashFocus } from './useSlashFocus';
 
 const REFRESH_MS = 30_000;
 
-type GroupBy = 'epic' | 'status' | 'assignee' | 'none';
+/** 'story' is the board-only Épica › Tarea: epic swimlanes with a band per task. */
+type GroupBy = 'epic' | 'story' | 'status' | 'assignee' | 'none';
 
 export interface Group {
   id: string;
@@ -27,7 +31,7 @@ export interface Group {
   issues: Issue[];
 }
 
-const GROUP_LABELS: Record<GroupBy, string> = { epic: 'Épica', status: 'Estado', assignee: 'Responsable', none: 'Ninguno' };
+const GROUP_LABELS: Record<GroupBy, string> = { epic: 'Épica', story: 'Épica › Tarea', status: 'Estado', assignee: 'Responsable', none: 'Ninguno' };
 
 function epicOf(issue: Issue, byKey: Map<string, Issue>): ParentRef | null {
   if (!issue.parent) return null;
@@ -101,8 +105,9 @@ export function SprintView() {
   const sprint = active.find((s) => s.id === selectedId) ?? active[0];
   const [groupBy, setGroupBy] = useLocalStorage<GroupBy>('groupBy', 'epic');
   const [layout, setLayout] = useLocalStorage<'list' | 'board'>('layout', 'list');
-  // In the board, status is already the column axis.
-  const laneBy: GroupBy = layout === 'board' && groupBy === 'status' ? 'none' : groupBy;
+  // In the board, status is already the column axis; task bands only exist on the board.
+  const mode: GroupBy = layout === 'board' ? (groupBy === 'status' ? 'none' : groupBy) : groupBy === 'story' ? 'epic' : groupBy;
+  const laneBy: Exclude<GroupBy, 'story'> = mode === 'story' ? 'epic' : mode;
   const [filters, setFilters] = useLocalStorage<Filters>(`filters:sprint:${board.id}`, emptyFilters);
   const [collapsedList, setCollapsedList] = useLocalStorage<string[]>(`collapsedLanes:${board.id}`, []);
   const collapsed = useMemo(() => new Set(collapsedList), [collapsedList]);
@@ -196,6 +201,7 @@ export function SprintView() {
     <div className={`view${layout === 'board' ? ' view-board' : ''}`}>
       <header className="view-header">
         <div className="view-title">
+          <SidebarToggle />
           {active.length > 1 ? (
             <div className="tabs">
               {active.map((s) => (
@@ -240,16 +246,22 @@ export function SprintView() {
           </button>
         )}
         {laneBy !== 'none' && groups.length > 0 && (
-          <button className="btn btn-ghost" onClick={() => setCollapsed(allGroupsFolded ? new Set() : new Set(groups.map((g) => g.id)))}>
-            <Icon.Chevron open={!allGroupsFolded} />{' '}
-            {allGroupsFolded
-              ? layout === 'board' ? 'Desplegar swimlanes' : 'Desplegar grupos'
-              : layout === 'board' ? 'Plegar swimlanes' : 'Plegar grupos'}
+          <button
+            className="btn btn-ghost btn-icon"
+            title={
+              allGroupsFolded
+                ? layout === 'board' ? 'Desplegar swimlanes' : 'Desplegar grupos'
+                : layout === 'board' ? 'Plegar swimlanes' : 'Plegar grupos'
+            }
+            onClick={() => setCollapsed(allGroupsFolded ? new Set() : new Set(groups.map((g) => g.id)))}
+          >
+            {allGroupsFolded ? <Icon.UnfoldAll /> : <Icon.FoldAll />}
           </button>
         )}
         {layout === 'board' && storiesWithSubtasks.length > 0 && (
           <button
-            className="btn btn-ghost"
+            className={`btn btn-ghost btn-icon${allStoriesFolded ? ' on' : ''}`}
+            title={allStoriesFolded ? 'Desplegar subtareas' : 'Plegar subtareas'}
             onClick={() =>
               setCollapsedStories(
                 allStoriesFolded
@@ -258,29 +270,39 @@ export function SprintView() {
               )
             }
           >
-            <Icon.Chevron open={!allStoriesFolded} /> {allStoriesFolded ? 'Desplegar subtareas' : 'Plegar subtareas'}
+            <Icon.Subtasks />
           </button>
         )}
         <div className="tabs">
-          <button className={`tab${layout === 'list' ? ' on' : ''}`} onClick={() => setLayout('list')}>
-            Lista
+          <button className={`tab tab-icon${layout === 'list' ? ' on' : ''}`} title="Lista" aria-label="Lista" onClick={() => setLayout('list')}>
+            <Icon.List />
           </button>
-          <button className={`tab${layout === 'board' ? ' on' : ''}`} onClick={() => setLayout('board')}>
-            Tablero
+          <button className={`tab tab-icon${layout === 'board' ? ' on' : ''}`} title="Tablero" aria-label="Tablero" onClick={() => setLayout('board')}>
+            <Icon.Board />
           </button>
         </div>
-        <label className="select">
-          <span className="muted">{layout === 'board' ? 'Swimlanes' : 'Agrupar'}</span>
-          <select value={laneBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)}>
-            {Object.entries(GROUP_LABELS)
-              .filter(([v]) => layout === 'list' || v !== 'status')
-              .map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Popover
+          width={200}
+          align="end"
+          renderTrigger={(p) => (
+            <button className="btn btn-ghost" title={layout === 'board' ? 'Swimlanes' : 'Agrupar por'} {...p}>
+              <Icon.Lanes /> {GROUP_LABELS[mode]}
+            </button>
+          )}
+        >
+          {(close) => (
+            <Menu
+              placeholder={layout === 'board' ? 'Swimlanes…' : 'Agrupar por…'}
+              items={Object.entries(GROUP_LABELS)
+                .filter(([v]) => (layout === 'list' ? v !== 'story' : v !== 'status'))
+                .map(([v, l]) => ({ id: v, label: l, selected: v === mode }))}
+              onSelect={(i) => {
+                setGroupBy(i.id as GroupBy);
+                close();
+              }}
+            />
+          )}
+        </Popover>
       </div>
 
       {!sprint && <div className="empty">No hay sprints activos visibles. Revisa el filtro de sprints.</div>}
@@ -302,6 +324,7 @@ export function SprintView() {
             collapsedStories={collapsedStories}
             onToggleStory={toggleStory}
             laneDrag={laneDrag}
+            storyBands={mode === 'story'}
           />
         )
       ) : (
@@ -320,7 +343,7 @@ export function SprintView() {
               </div>
               {!collapsed.has(g.id) &&
                 g.issues.map((i) => (
-                  <IssueRow key={i.key} issue={i} preview showParent={groupBy !== 'epic'} onContextMenu={(e) => openMenu(e, i)} />
+                  <IssueRow key={i.key} issue={i} preview showParent={laneBy !== 'epic'} onContextMenu={(e) => openMenu(e, i)} />
                 ))}
             </section>
           ),

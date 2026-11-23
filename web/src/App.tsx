@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from './api';
 import { AppContext, useLocalStorage, useRoute, type AppCtx, type View } from './hooks';
@@ -10,6 +11,7 @@ import { GoToIssue } from './components/GoToIssue';
 import { IssuePanel } from './components/IssuePanel';
 import { Menu } from './components/Menu';
 import { Popover } from './components/Popover';
+import { SidebarContext } from './components/SidebarToggle';
 import { SprintView } from './components/SprintView';
 
 function Toasts() {
@@ -223,6 +225,24 @@ export function App() {
   const openIssue = useCallback((key: string) => navigate(view, key), [navigate, view]);
   const closeIssue = useCallback(() => navigate(view, null), [navigate, view]);
 
+  const [sidebarHidden, setSidebarHidden] = useLocalStorage('sidebarHidden', false);
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      // ⌘K focuses the go-to box in the sidebar: show it first. Capture phase, so this runs before that handler.
+      if (sidebarHidden && e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey)) {
+        flushSync(() => setSidebarHidden(false));
+        return;
+      }
+      const t = e.target as HTMLElement;
+      // Also by physical key: on a Spanish layout that key types "`" and "[" needs ⌥.
+      if ((e.key !== '[' && e.code !== 'BracketLeft') || e.metaKey || e.ctrlKey || t.closest('input, textarea, [contenteditable]')) return;
+      e.preventDefault();
+      setSidebarHidden((h) => !h);
+    };
+    window.addEventListener('keydown', on, true);
+    return () => window.removeEventListener('keydown', on, true);
+  }, [sidebarHidden, setSidebarHidden]);
+
   if (meQ.error instanceof ApiError && meQ.error.login) return <Login message={meQ.error.message} />;
   if (meQ.error) return <Setup message={(meQ.error as Error).message} />;
   if (boardsQ.error) return <Setup message={(boardsQ.error as Error).message} />;
@@ -245,12 +265,15 @@ export function App() {
 
   return (
     <AppContext.Provider value={ctx}>
-      <div className="app">
-        <Sidebar me={meQ.data} board={board} boards={boards} onBoard={setBoardId} view={view} onView={(v) => navigate(v, null)} onOpen={openIssue} />
-        <div className="main">{view === 'sprint' ? <SprintView /> : <BacklogView />}</div>
-        {issue && <IssuePanel key={issue} issueKey={issue} onClose={closeIssue} onOpen={openIssue} />}
-        <Toasts />
-      </div>
+      <SidebarContext.Provider value={{ hidden: sidebarHidden, toggle: () => setSidebarHidden((h) => !h) }}>
+        <div className={`app${sidebarHidden ? ' sidebar-hidden' : ''}`}>
+          {/* Hidden with CSS rather than unmounted, so the ⌘K listener in GoToIssue stays alive. */}
+          <Sidebar me={meQ.data} board={board} boards={boards} onBoard={setBoardId} view={view} onView={(v) => navigate(v, null)} onOpen={openIssue} />
+          <div className="main">{view === 'sprint' ? <SprintView /> : <BacklogView />}</div>
+          {issue && <IssuePanel key={issue} issueKey={issue} onClose={closeIssue} onOpen={openIssue} />}
+          <Toasts />
+        </div>
+      </SidebarContext.Provider>
     </AppContext.Provider>
   );
 }
