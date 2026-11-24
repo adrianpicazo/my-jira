@@ -1250,6 +1250,8 @@ code {
 }
 .board-inner {
   padding: 0 12px 60px;
+  /* Height of the sticky column header, which the sticky swimlane and band headers sit under. */
+  --cols-h: 44px;
 }
 .board-cols,
 .lane-cells {
@@ -1261,6 +1263,7 @@ code {
   top: 0;
   z-index: 4;
   background: var(--bg);
+  height: var(--cols-h);
   padding: 10px 0 8px;
 }
 /* Sticky headers reach over .board-inner's side padding, so nothing scrolled beneath (like a
@@ -1363,7 +1366,7 @@ code {
 }
 .lane-head {
   position: sticky;
-  top: 40px;
+  top: var(--cols-h);
   z-index: 3;
   background: var(--bg);
   height: 36px;
@@ -1431,7 +1434,7 @@ code {
 .band-head {
   grid-column: 1 / -1;
   position: sticky;
-  top: 76px;
+  top: calc(var(--cols-h) + 36px);
   z-index: 2;
   height: 30px;
   margin: -5px 0 -4px;
