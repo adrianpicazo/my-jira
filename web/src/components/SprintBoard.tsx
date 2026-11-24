@@ -833,7 +833,8 @@ export function SprintBoard({
                                     columns={allColumns}
                                     folded={false}
                                     onToggleSubtasks={() => {}}
-                                    highlight={hoverStory === storyKey ? 'hover' : flash.has(s.key) ? 'flash' : null}
+                                    // In a task's band it's already clear which subtasks are its own.
+                                    highlight={row.band ? null : hoverStory === storyKey ? 'hover' : flash.has(s.key) ? 'flash' : null}
                                     onDragStart={() => {
                                       drag.current = { key: s.key, kind: 'subtask', rankKey: s.key, parentKey: s.parent?.key, laneId: row.id, cellId, colIdx };
                                     }}
