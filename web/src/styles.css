@@ -14,6 +14,7 @@
   --accent-2: #7c86e0;
   --danger: #e5484d;
   --shadow: 0 8px 30px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--border-2);
+  --lane-tint: 12%;
   color-scheme: dark;
 }
 
@@ -31,6 +32,7 @@
     --muted: #8a8d95;
     --faint: #d4d5da;
     --shadow: 0 8px 30px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-2);
+    --lane-tint: 7%;
     color-scheme: light;
   }
 }
@@ -1370,6 +1372,21 @@ code {
   cursor: pointer;
   user-select: none;
   border-bottom: 1px solid var(--border);
+}
+/* Epic swimlanes: a tint and a bar of the epic's colour set them apart from the task bands
+   inside. The bar is a pseudo-element so the drop indicator's box-shadow still shows. */
+.lane-head.lane-tinted {
+  background: color-mix(in srgb, var(--lane) var(--lane-tint), var(--bg));
+}
+.lane-head.lane-tinted::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--lane);
+}
+.lane-tinted .group-title {
+  font-weight: 600;
 }
 /* Swimlane drop indicator, drawn on the header it lands before/after. */
 .lane-drop-before,

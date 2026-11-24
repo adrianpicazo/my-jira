@@ -702,7 +702,12 @@ export function SprintBoard({
           return (
             <section key={g.id} className="lane">
               {g.header !== null && (
-                <div {...laneDrag(g.id)} className={`lane-head${laneDrag(g.id).className}`} onClick={() => onToggle(g.id)}>
+                <div
+                  {...laneDrag(g.id)}
+                  className={`lane-head${g.color ? ' lane-tinted' : ''}${laneDrag(g.id).className}`}
+                  style={g.color ? ({ '--lane': g.color } as CSSProperties) : undefined}
+                  onClick={() => onToggle(g.id)}
+                >
                   <div className="lane-title">
                     <Icon.Chevron open={open} />
                     {g.header}

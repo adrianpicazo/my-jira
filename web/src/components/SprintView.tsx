@@ -29,6 +29,8 @@ export interface Group {
   id: string;
   header: ReactNode;
   issues: Issue[];
+  /** The epic's colour, which tints its swimlane header on the board. */
+  color?: string;
 }
 
 const GROUP_LABELS: Record<GroupBy, string> = { epic: 'Épica', story: 'Épica › Tarea', status: 'Estado', assignee: 'Responsable', none: 'Ninguno' };
@@ -43,9 +45,9 @@ function epicOf(issue: Issue, byKey: Map<string, Issue>): ParentRef | null {
 function groupIssues(issues: Issue[], all: Issue[], by: GroupBy, columns: Column[] | undefined, epics: Map<string, Issue>): Group[] {
   if (by === 'none') return [{ id: 'all', header: null, issues }];
   const groups = new Map<string, Group & { order: number; label: string }>();
-  const add = (id: string, order: number, label: string, header: () => ReactNode, issue: Issue) => {
+  const add = (id: string, order: number, label: string, header: () => ReactNode, issue: Issue, color?: string) => {
     let g = groups.get(id);
-    if (!g) groups.set(id, (g = { id, order, label, header: header(), issues: [] }));
+    if (!g) groups.set(id, (g = { id, order, label, header: header(), issues: [], color }));
     g.issues.push(issue);
   };
 
@@ -55,7 +57,7 @@ function groupIssues(issues: Issue[], all: Issue[], by: GroupBy, columns: Column
       const epic = epicOf(i, byKey);
       if (!epic) return add('none', 1e9, '', () => <span className="group-title muted">Sin épica</span>, i);
       const full = epics.get(epic.key);
-      add(epic.key, idx, epic.key, () => <EpicHeader epic={epic} full={full} />, i);
+      add(epic.key, idx, epic.key, () => <EpicHeader epic={epic} full={full} />, i, colorFor(epic.key));
     });
   } else if (by === 'status') {
     const colIdx = new Map<string, number>();
