@@ -179,6 +179,8 @@ export function SprintView() {
   const allStoriesFolded = storiesWithSubtasks.length > 0 && storiesWithSubtasks.every((k) => collapsedStories.includes(k));
   const toggleStory = (key: string) =>
     setCollapsedStories(collapsedStories.includes(key) ? collapsedStories.filter((k) => k !== key) : [...collapsedStories, key]);
+  const foldStories = (keys: string[], fold: boolean) =>
+    setCollapsedStories(fold ? [...new Set([...collapsedStories, ...keys])] : collapsedStories.filter((k) => !keys.includes(k)));
   // Swimlanes can be reordered by dragging their headers; the order is kept per board and grouping.
   const [laneOrder, setLaneOrder] = useLocalStorage<string[]>(`laneOrder:${board.id}:${laneBy}`, []);
   const groups = applyLaneOrder(groupIssues(visible, all, laneBy, columns, epics), laneOrder);
@@ -261,14 +263,8 @@ export function SprintView() {
         {layout === 'board' && storiesWithSubtasks.length > 0 && (
           <button
             className={`btn btn-ghost btn-icon${allStoriesFolded ? ' on' : ''}`}
-            title={allStoriesFolded ? 'Desplegar subtareas' : 'Plegar subtareas'}
-            onClick={() =>
-              setCollapsedStories(
-                allStoriesFolded
-                  ? collapsedStories.filter((k) => !storiesWithSubtasks.includes(k))
-                  : [...new Set([...collapsedStories, ...storiesWithSubtasks])],
-              )
-            }
+            title={`${allStoriesFolded ? 'Desplegar' : 'Plegar'} ${mode === 'story' ? 'todas las tareas' : 'subtareas'}`}
+            onClick={() => foldStories(storiesWithSubtasks, !allStoriesFolded)}
           >
             <Icon.Subtasks />
           </button>
@@ -323,6 +319,7 @@ export function SprintView() {
             hiddenStatusIds={hiddenStatusIds}
             collapsedStories={collapsedStories}
             onToggleStory={toggleStory}
+            onFoldStories={foldStories}
             laneDrag={laneDrag}
             storyBands={mode === 'story'}
           />

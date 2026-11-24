@@ -1409,6 +1409,54 @@ code {
   outline: 1px dashed color-mix(in srgb, var(--muted) 55%, transparent);
   outline-offset: 5px;
 }
+/* The band's header: folds it down to this one line. Sticks under the epic's header while the
+   band scrolls past (the band itself bounds it). */
+.band-head {
+  grid-column: 1 / -1;
+  position: sticky;
+  top: 76px;
+  z-index: 2;
+  height: 30px;
+  margin: -5px 0 -4px;
+  display: flex;
+  align-items: center;
+  background: var(--bg);
+  border-radius: 8px 8px 0 0;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+  user-select: none;
+}
+.story-band.folded .band-head {
+  margin-bottom: -5px;
+  border-radius: 8px;
+}
+.band-head:hover {
+  color: var(--text);
+}
+.band-title {
+  position: sticky;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+  max-width: calc(100vw - 300px);
+  min-width: 0;
+}
+.band-title > * {
+  flex: none;
+}
+.band-title > .group-link {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.band-title > svg:first-child {
+  color: var(--muted);
+}
+.band-title .row-key {
+  width: auto;
+}
 /* Away from the task's card there's nothing to indent under. */
 .unit-bare .card-sub {
   width: auto;
